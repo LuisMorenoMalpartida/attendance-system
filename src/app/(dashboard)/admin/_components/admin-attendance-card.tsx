@@ -12,7 +12,7 @@ import {
   Shield
 } from 'lucide-react';
 import { useGSAP } from '@gsap/react';
-import { getNowISO } from '@/lib/date-utils';
+import { getPeruNowTimestamp, formatTime } from '@/lib/date-utils';
 import gsap from 'gsap';
 
 type AttendanceType = 'check_in' | 'lunch_out' | 'lunch_in' | 'check_out';
@@ -30,12 +30,10 @@ export function AdminAttendanceCard() {
   const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
-    // Intentar obtener ubicación al cargar (para mostrar el indicador)
     getCurrentLocation();
     fetchLastRecord();
   }, []);
 
-  // 👇 Función para obtener ubicación actual
   const getCurrentLocation = async (): Promise<{ latitude: number; longitude: number } | null> => {
     if (!navigator.geolocation) {
       console.warn('⚠️ Geolocalización no soportada');
@@ -47,7 +45,7 @@ export function AdminAttendanceCard() {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
           enableHighAccuracy: true,
           timeout: 10000,
-          maximumAge: 0 // 👈 No usar caché, siempre ubicación fresca
+          maximumAge: 0
         });
       });
 
@@ -94,15 +92,12 @@ export function AdminAttendanceCard() {
       setError(null);
       setSuccess(null);
 
-      // Obtener ubicación FRESCA antes de cada registro
-      console.log('📍 Solicitando ubicación GPS...');
+      // Obtener ubicación fresca
       const currentLocation = await getCurrentLocation();
 
-      console.log('📤 Enviando registro:', {
-        type,
-        latitude: currentLocation?.latitude,
-        longitude: currentLocation?.longitude,
-      });
+      // Obtener timestamp en hora Perú (sin timezone)
+      const peruTimestamp = getPeruNowTimestamp();
+      console.log('📤 Enviando timestamp Perú:', peruTimestamp);
 
       const response = await fetch('/api/attendance', {
         method: 'POST',
@@ -112,7 +107,7 @@ export function AdminAttendanceCard() {
           latitude: currentLocation?.latitude ?? null,
           longitude: currentLocation?.longitude ?? null,
           deviceInfo: navigator.userAgent,
-          timestamp: getNowISO(), // Hora local del dispositivo
+          timestamp: peruTimestamp,
         }),
       });
 
@@ -124,7 +119,7 @@ export function AdminAttendanceCard() {
       }
 
       setSuccess(`¡${getTypeLabel(type)} registrado exitosamente!`);
-      setLastRecord({ type, timestamp: new Date().toISOString() });
+      setLastRecord({ type, timestamp: peruTimestamp });
 
       gsap.fromTo('.success-message',
         { scale: 0.8, opacity: 0 },
@@ -145,7 +140,7 @@ export function AdminAttendanceCard() {
   };
 
   const getTypeLabel = (type: AttendanceType): string => {
-    const labels = {
+    const labels: Record<AttendanceType, string> = {
       check_in: 'Entrada',
       lunch_out: 'Salida a comer',
       lunch_in: 'Regreso de comer',
@@ -230,41 +225,69 @@ export function AdminAttendanceCard() {
                 {getTypeLabel(lastRecord.type)}
               </span>
               <span className="text-sm text-slate-500 dark:text-slate-400">
-                {new Date(lastRecord.timestamp).toLocaleTimeString('es-ES')}
+                {formatTime(lastRecord.timestamp)}
               </span>
             </div>
           </div>
         )}
 
         <div className="grid grid-cols-2 gap-3">
-          <button onClick={() => handleAttendanceRecord('check_in')} disabled={isButtonDisabled('check_in')}
-            className={`attendance-action relative overflow-hidden p-4 rounded-xl font-medium text-white transition-all duration-300 bg-gradient-to-r from-blue-500 to-blue-600 ${isButtonDisabled('check_in') ? 'opacity-50 cursor-not-allowed' : 'hover:from-blue-600 hover:to-blue-700'}`}>
+          <button 
+            onClick={() => handleAttendanceRecord('check_in')} 
+            disabled={isButtonDisabled('check_in')}
+            className={`attendance-action relative overflow-hidden p-4 rounded-xl font-medium text-white transition-all duration-300 bg-gradient-to-r from-blue-500 to-blue-600 ${isButtonDisabled('check_in') ? 'opacity-50 cursor-not-allowed' : 'hover:from-blue-600 hover:to-blue-700'}`}
+          >
             <div className="relative z-10 flex items-center justify-center gap-2">
-              {loading === 'check_in' ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <LogIn className="w-5 h-5" />}
+              {loading === 'check_in' ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <LogIn className="w-5 h-5" />
+              )}
               <span>Entrada</span>
             </div>
           </button>
 
-          <button onClick={() => handleAttendanceRecord('lunch_out')} disabled={isButtonDisabled('lunch_out')}
-            className={`attendance-action relative overflow-hidden p-4 rounded-xl font-medium text-white transition-all duration-300 bg-gradient-to-r from-orange-500 to-orange-600 ${isButtonDisabled('lunch_out') ? 'opacity-50 cursor-not-allowed' : 'hover:from-orange-600 hover:to-orange-700'}`}>
+          <button 
+            onClick={() => handleAttendanceRecord('lunch_out')} 
+            disabled={isButtonDisabled('lunch_out')}
+            className={`attendance-action relative overflow-hidden p-4 rounded-xl font-medium text-white transition-all duration-300 bg-gradient-to-r from-orange-500 to-orange-600 ${isButtonDisabled('lunch_out') ? 'opacity-50 cursor-not-allowed' : 'hover:from-orange-600 hover:to-orange-700'}`}
+          >
             <div className="relative z-10 flex items-center justify-center gap-2">
-              {loading === 'lunch_out' ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Coffee className="w-5 h-5" />}
+              {loading === 'lunch_out' ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Coffee className="w-5 h-5" />
+              )}
               <span>Salida Comida</span>
             </div>
           </button>
 
-          <button onClick={() => handleAttendanceRecord('lunch_in')} disabled={isButtonDisabled('lunch_in')}
-            className={`attendance-action relative overflow-hidden p-4 rounded-xl font-medium text-white transition-all duration-300 bg-gradient-to-r from-green-500 to-green-600 ${isButtonDisabled('lunch_in') ? 'opacity-50 cursor-not-allowed' : 'hover:from-green-600 hover:to-green-700'}`}>
+          <button 
+            onClick={() => handleAttendanceRecord('lunch_in')} 
+            disabled={isButtonDisabled('lunch_in')}
+            className={`attendance-action relative overflow-hidden p-4 rounded-xl font-medium text-white transition-all duration-300 bg-gradient-to-r from-green-500 to-green-600 ${isButtonDisabled('lunch_in') ? 'opacity-50 cursor-not-allowed' : 'hover:from-green-600 hover:to-green-700'}`}
+          >
             <div className="relative z-10 flex items-center justify-center gap-2">
-              {loading === 'lunch_in' ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Coffee className="w-5 h-5" />}
+              {loading === 'lunch_in' ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Coffee className="w-5 h-5" />
+              )}
               <span>Regreso Comida</span>
             </div>
           </button>
 
-          <button onClick={() => handleAttendanceRecord('check_out')} disabled={isButtonDisabled('check_out')}
-            className={`attendance-action relative overflow-hidden p-4 rounded-xl font-medium text-white transition-all duration-300 bg-gradient-to-r from-red-500 to-red-600 ${isButtonDisabled('check_out') ? 'opacity-50 cursor-not-allowed' : 'hover:from-red-600 hover:to-red-700'}`}>
+          <button 
+            onClick={() => handleAttendanceRecord('check_out')} 
+            disabled={isButtonDisabled('check_out')}
+            className={`attendance-action relative overflow-hidden p-4 rounded-xl font-medium text-white transition-all duration-300 bg-gradient-to-r from-red-500 to-red-600 ${isButtonDisabled('check_out') ? 'opacity-50 cursor-not-allowed' : 'hover:from-red-600 hover:to-red-700'}`}
+          >
             <div className="relative z-10 flex items-center justify-center gap-2">
-              {loading === 'check_out' ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <LogOut className="w-5 h-5" />}
+              {loading === 'check_out' ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <LogOut className="w-5 h-5" />
+              )}
               <span>Salida</span>
             </div>
           </button>

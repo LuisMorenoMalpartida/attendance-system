@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
-    const date = searchParams.get('date') || new Date().toISOString().split('T')[0];
+    const date = searchParams.get('date') || getPeruToday();
 
     // Obtener el último registro del día
     const lastRecord = await db.query(
@@ -53,9 +53,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    const { type, latitude, longitude, deviceInfo, notes } = await req.json();
-    const timestamp = new Date().toISOString();
-    const today = new Date().toISOString().split('T')[0];
+    const { type, latitude, longitude, deviceInfo, notes, timestamp } = await req.json();
+
+    // 👇 Convertir a hora Perú sin timezone
+    const localTimestamp = timestamp 
+      ? convertToPeruTimestamp(timestamp) 
+      : getPeruNowTimestamp();
+
+    const today = localTimestamp.split('T')[0];
+
+    console.log('🕐 Hora original:', timestamp);
+    console.log('🕐 Hora Perú guardada:', localTimestamp);
 
     // Verificar horario laboral
     const schedule = await db.query(
@@ -89,12 +97,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // 👇 Guardar con timestamp sin timezone
     const result = await db.query(
       `INSERT INTO attendance_records 
        (user_id, type, timestamp, latitude, longitude, device_info, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) 
+       VALUES ($1, $2, $3::timestamp, $4, $5, $6, $7) 
        RETURNING *`,
-      [user.userId, type, timestamp, latitude, longitude, deviceInfo, notes]
+      [user.userId, type, localTimestamp, latitude, longitude, deviceInfo, notes]
     );
 
     return NextResponse.json({
@@ -160,7 +169,6 @@ async function validateAttendanceFlow(
       if (existingTypes.includes('check_out')) {
         return { valid: false, message: 'Ya registraste tu salida hoy' };
       }
-      // Si hay salida a comer, debe haber regreso
       if (existingTypes.includes('lunch_out') && !existingTypes.includes('lunch_in')) {
         return { valid: false, message: 'Debes registrar tu regreso de comer primero' };
       }
@@ -171,4 +179,41 @@ async function validateAttendanceFlow(
   }
 
   return { valid: true, message: 'OK' };
+}
+
+// 👇 Funciones helper para manejo de hora Perú
+function getPeruToday(): string {
+  const now = new Date();
+  const peruString = now.toLocaleString('en-US', { timeZone: 'America/Lima' });
+  const peruDate = new Date(peruString);
+  const year = peruDate.getFullYear();
+  const month = String(peruDate.getMonth() + 1).padStart(2, '0');
+  const day = String(peruDate.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getPeruNowTimestamp(): string {
+  const now = new Date();
+  const peruString = now.toLocaleString('en-US', { timeZone: 'America/Lima' });
+  const peruDate = new Date(peruString);
+  const year = peruDate.getFullYear();
+  const month = String(peruDate.getMonth() + 1).padStart(2, '0');
+  const day = String(peruDate.getDate()).padStart(2, '0');
+  const hours = String(peruDate.getHours()).padStart(2, '0');
+  const minutes = String(peruDate.getMinutes()).padStart(2, '0');
+  const seconds = String(peruDate.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+}
+
+function convertToPeruTimestamp(isoTimestamp: string): string {
+  const date = new Date(isoTimestamp);
+  const peruString = date.toLocaleString('en-US', { timeZone: 'America/Lima' });
+  const peruDate = new Date(peruString);
+  const year = peruDate.getFullYear();
+  const month = String(peruDate.getMonth() + 1).padStart(2, '0');
+  const day = String(peruDate.getDate()).padStart(2, '0');
+  const hours = String(peruDate.getHours()).padStart(2, '0');
+  const minutes = String(peruDate.getMinutes()).padStart(2, '0');
+  const seconds = String(peruDate.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
 }

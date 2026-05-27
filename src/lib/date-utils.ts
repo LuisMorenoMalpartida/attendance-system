@@ -1,78 +1,136 @@
-import { format, formatDistanceToNow, isToday, isYesterday, parseISO } from 'date-fns';
+import { format, isToday, isYesterday } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { toZonedTime, format as formatTZ } from 'date-fns-tz';
 
-// Zona horaria de Perú
 export const PERU_TIMEZONE = 'America/Lima';
 
 /**
- * Formatea una fecha ISO a hora local (HH:MM)
- * Ej: "08:00"
+ * Obtiene la fecha y hora actual en Perú como string (YYYY-MM-DDTHH:MM:SS)
+ */
+export function getPeruNowTimestamp(): string {
+  const now = new Date();
+  const peruString = now.toLocaleString('en-US', { timeZone: PERU_TIMEZONE });
+  const peruDate = new Date(peruString);
+  
+  const year = peruDate.getFullYear();
+  const month = String(peruDate.getMonth() + 1).padStart(2, '0');
+  const day = String(peruDate.getDate()).padStart(2, '0');
+  const hours = String(peruDate.getHours()).padStart(2, '0');
+  const minutes = String(peruDate.getMinutes()).padStart(2, '0');
+  const seconds = String(peruDate.getSeconds()).padStart(2, '0');
+  
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+}
+
+/**
+ * Obtiene la fecha actual en Perú como YYYY-MM-DD
+ */
+export function getPeruToday(): string {
+  const now = new Date();
+  const peruString = now.toLocaleString('en-US', { timeZone: PERU_TIMEZONE });
+  const peruDate = new Date(peruString);
+  
+  const year = peruDate.getFullYear();
+  const month = String(peruDate.getMonth() + 1).padStart(2, '0');
+  const day = String(peruDate.getDate()).padStart(2, '0');
+  
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Extrae solo la fecha (YYYY-MM-DD) de cualquier formato de timestamp
+ */
+function extractDate(timestamp: string): string {
+  // Si ya es solo fecha YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(timestamp)) {
+    return timestamp;
+  }
+  // Si es timestamp ISO: "2026-05-27T08:00:00" o "2026-05-27T05:00:00.000Z"
+  return timestamp.split('T')[0];
+}
+
+/**
+ * Crea un objeto Date seguro a partir de una fecha string
+ */
+function safeDate(dateStr: string): Date {
+  const date = new Date(dateStr);
+  // Si es inválido, intentar extraer solo la fecha
+  if (isNaN(date.getTime())) {
+    const extracted = extractDate(dateStr);
+    return new Date(extracted + 'T12:00:00');
+  }
+  return date;
+}
+
+/**
+ * Formatea una hora (HH:MM)
  */
 export function formatTime(timestamp: string | Date | null | undefined): string {
   if (!timestamp) return '--:--';
   
-  const date = typeof timestamp === 'string' ? parseISO(timestamp) : timestamp;
-  const zonedDate = toZonedTime(date, PERU_TIMEZONE);
+  const date = typeof timestamp === 'string' ? safeDate(timestamp) : timestamp;
   
-  return format(zonedDate, 'HH:mm');
+  if (isNaN(date.getTime())) return '--:--';
+  
+  return format(date, 'HH:mm');
 }
 
 /**
- * Formatea una fecha ISO a hora con segundos (HH:MM:SS)
- * Ej: "08:00:00"
+ * Formatea una fecha legible
+ * Soporta: "2026-05-27", "2026-05-27T08:00:00", "2026-05-27T05:00:00.000Z"
  */
-export function formatTimeWithSeconds(timestamp: string | Date | null | undefined): string {
-  if (!timestamp) return '--:--:--';
+export function formatDate(dateStr: string | Date | null | undefined): string {
+  if (!dateStr) return '--/--/----';
   
-  const date = typeof timestamp === 'string' ? parseISO(timestamp) : timestamp;
-  const zonedDate = toZonedTime(date, PERU_TIMEZONE);
+  let date: Date;
   
-  return format(zonedDate, 'HH:mm:ss');
+  if (typeof dateStr === 'string') {
+    // Extraer solo la parte de la fecha
+    const justDate = extractDate(dateStr);
+    date = new Date(justDate + 'T12:00:00');
+  } else {
+    date = dateStr;
+  }
+  
+  if (isNaN(date.getTime())) return '--/--/----';
+  
+  return format(date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es });
 }
 
 /**
- * Formatea una fecha ISO a fecha legible
- * Ej: "lunes, 27 de mayo de 2026"
+ * Formatea una fecha corta (DD/MM/YYYY)
  */
-export function formatDate(timestamp: string | Date | null | undefined): string {
-  if (!timestamp) return '--/--/----';
+export function formatShortDate(dateStr: string | Date | null | undefined): string {
+  if (!dateStr) return '--/--/----';
   
-  const date = typeof timestamp === 'string' ? parseISO(timestamp) : timestamp;
-  const zonedDate = toZonedTime(date, PERU_TIMEZONE);
+  let date: Date;
   
-  return format(zonedDate, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es });
+  if (typeof dateStr === 'string') {
+    const justDate = extractDate(dateStr);
+    date = new Date(justDate + 'T12:00:00');
+  } else {
+    date = dateStr;
+  }
+  
+  if (isNaN(date.getTime())) return '--/--/----';
+  
+  return format(date, 'dd/MM/yyyy');
 }
 
 /**
- * Formatea una fecha ISO a fecha corta
- * Ej: "27/05/2026"
- */
-export function formatShortDate(timestamp: string | Date | null | undefined): string {
-  if (!timestamp) return '--/--/----';
-  
-  const date = typeof timestamp === 'string' ? parseISO(timestamp) : timestamp;
-  const zonedDate = toZonedTime(date, PERU_TIMEZONE);
-  
-  return format(zonedDate, 'dd/MM/yyyy');
-}
-
-/**
- * Formatea una fecha ISO a fecha y hora
- * Ej: "27/05/2026 08:00"
+ * Formatea fecha y hora
  */
 export function formatDateTime(timestamp: string | Date | null | undefined): string {
   if (!timestamp) return '--/--/---- --:--';
   
-  const date = typeof timestamp === 'string' ? parseISO(timestamp) : timestamp;
-  const zonedDate = toZonedTime(date, PERU_TIMEZONE);
+  const date = typeof timestamp === 'string' ? safeDate(timestamp) : timestamp;
   
-  return format(zonedDate, "dd/MM/yyyy 'a las' HH:mm", { locale: es });
+  if (isNaN(date.getTime())) return '--/--/---- --:--';
+  
+  return format(date, "dd/MM/yyyy 'a las' HH:mm", { locale: es });
 }
 
 /**
- * Formatea horas trabajadas (decimal) a HH:MM
- * Ej: 8.75 → "8h 45m"
+ * Formatea horas trabajadas (decimal)
  */
 export function formatHoursWorked(hours: number | null | undefined): string {
   if (!hours && hours !== 0) return '--:--';
@@ -87,28 +145,33 @@ export function formatHoursWorked(hours: number | null | undefined): string {
 }
 
 /**
- * Obtiene la fecha actual en formato ISO (hora local Perú)
+ * Formatea horas trabajadas en HH:MM
  */
-export function getNowISO(): string {
-  return new Date().toISOString();
+export function formatHoursDecimal(hours: number | null | undefined): string {
+  if (!hours && hours !== 0) return '--:--';
+  
+  const h = Math.floor(hours);
+  const m = Math.round((hours - h) * 60);
+  
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 }
 
 /**
- * Obtiene la fecha actual en formato YYYY-MM-DD
+ * Formatea un mes y año
  */
-export function getTodayString(): string {
-  const zonedDate = toZonedTime(new Date(), PERU_TIMEZONE);
-  return format(zonedDate, 'yyyy-MM-dd');
+export function formatMonthYear(date: Date): string {
+  return format(date, "MMMM 'de' yyyy", { locale: es });
 }
 
 /**
  * Formatea una fecha relativa
- * Ej: "hace 5 minutos", "ayer a las 08:00"
  */
 export function formatRelativeTime(timestamp: string | Date | null | undefined): string {
   if (!timestamp) return '';
   
-  const date = typeof timestamp === 'string' ? parseISO(timestamp) : timestamp;
+  const date = typeof timestamp === 'string' ? safeDate(timestamp) : timestamp;
+  
+  if (isNaN(date.getTime())) return '';
   
   if (isToday(date)) {
     return `Hoy a las ${formatTime(timestamp)}`;
@@ -118,36 +181,5 @@ export function formatRelativeTime(timestamp: string | Date | null | undefined):
     return `Ayer a las ${formatTime(timestamp)}`;
   }
   
-  return formatDistanceToNow(date, { addSuffix: true, locale: es });
-}
-
-/**
- * Formatea un mes y año
- * Ej: "mayo de 2026"
- */
-export function formatMonthYear(date: Date): string {
-  const zonedDate = toZonedTime(date, PERU_TIMEZONE);
-  return format(zonedDate, "MMMM 'de' yyyy", { locale: es });
-}
-
-/**
- * Obtiene el día de la semana
- * Ej: "lunes"
- */
-export function getDayOfWeek(date: Date): string {
-  const zonedDate = toZonedTime(date, PERU_TIMEZONE);
-  return format(zonedDate, 'EEEE', { locale: es });
-}
-
-/**
- * Compara dos fechas (ignorando hora) para ver si son el mismo día
- */
-export function isSameDay(date1: Date | string, date2: Date | string): boolean {
-  const d1 = typeof date1 === 'string' ? parseISO(date1) : date1;
-  const d2 = typeof date2 === 'string' ? parseISO(date2) : date2;
-  
-  const zoned1 = toZonedTime(d1, PERU_TIMEZONE);
-  const zoned2 = toZonedTime(d2, PERU_TIMEZONE);
-  
-  return format(zoned1, 'yyyy-MM-dd') === format(zoned2, 'yyyy-MM-dd');
+  return format(date, "d 'de' MMMM 'a las' HH:mm", { locale: es });
 }

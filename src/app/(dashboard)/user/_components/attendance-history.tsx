@@ -121,7 +121,7 @@ export function AttendanceHistory() {
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
                       <div>
-                        <p className="text-sm font-semibold">{formatDate(day.date)}</p> {/* ✅ */}
+                        <p className="text-sm font-semibold">{formatDate(day.date)}</p> 
                       </div>
                       {getDayStatusBadge(day)}
                     </div>
