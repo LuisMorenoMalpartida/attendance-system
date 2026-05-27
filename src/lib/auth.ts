@@ -61,10 +61,26 @@ export async function logout() {
   cookieStore.delete(COOKIE_NAME);
 }
 
-export async function verifyAuth(req: NextRequest) {
+interface AuthUser {
+  userId: number;
+  role: string;
+  expires?: string;
+}
+
+export async function verifyAuth(
+  req: NextRequest
+): Promise<AuthUser | null> {
   const token = req.cookies.get(COOKIE_NAME)?.value;
 
   if (!token) return null;
 
-  return await decrypt(token);
+  const payload = await decrypt(token);
+
+  if (!payload) return null;
+
+  return {
+    userId: Number(payload.userId),
+    role: String(payload.role),
+    expires: payload.expires?.toString(),
+  };
 }

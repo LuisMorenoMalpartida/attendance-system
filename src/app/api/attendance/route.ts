@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     // Verificar horario laboral
     const schedule = await db.query(
       `SELECT * FROM work_schedules WHERE user_id = $1 AND day_of_week = $2`,
-      [user.id, new Date().getDay()]
+      [user.userId, new Date().getDay()]
     );
 
     // Evitar duplicados consecutivos
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
        WHERE user_id = $1 
        AND DATE(timestamp) = $2 
        ORDER BY timestamp DESC LIMIT 1`,
-      [user.id, today]
+      [user.userId, today]
     );
 
     if (lastRecord.rows.length > 0 && lastRecord.rows[0].type === type) {
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Validar flujo diario
-    const validFlow = await validateAttendanceFlow(user.id, type, today);
+    const validFlow = await validateAttendanceFlow(user.userId, type, today);
     if (!validFlow.valid) {
       return NextResponse.json(
         { error: validFlow.message },
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
       `INSERT INTO attendance_records 
        (user_id, type, timestamp, latitude, longitude, device_info, notes)
        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [user.id, type, timestamp, latitude, longitude, deviceInfo, notes]
+      [user.userId, type, timestamp, latitude, longitude, deviceInfo, notes]
     );
 
     return NextResponse.json(result.rows[0]);
