@@ -108,34 +108,29 @@ export function useRegister() {
     setError(null);
 
     try {
-      // Primero registrar usuario
+      // Crear FormData para enviar todo junto (datos + foto)
+      const formDataToSend = new FormData();
+      formDataToSend.append('name', formData.name.trim());
+      formDataToSend.append('email', formData.email.trim());
+      formDataToSend.append('password', formData.password);
+      formDataToSend.append('companyName', formData.companyName.trim());
+      formDataToSend.append('role', 'user');
+
+      // Si hay foto, agregarla al mismo FormData
+      if (formData.profilePhoto) {
+        formDataToSend.append('profilePhoto', formData.profilePhoto);
+      }
+
+      // Enviar todo como FormData (sin header Content-Type, fetch lo pone automático)
       const registerResponse = await fetch('/api/auth/register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: formData.name.trim(),
-          email: formData.email.trim(),
-          password: formData.password,
-          companyName: formData.companyName.trim(),
-          role: 'user',
-        }),
+        body: formDataToSend, // FormData, fetch agrega el Content-Type correcto
       });
 
       const registerData = await registerResponse.json();
 
       if (!registerResponse.ok) {
         throw new Error(registerData.error || 'Error al registrar usuario');
-      }
-
-      // Si hay foto, subirla
-      if (formData.profilePhoto && registerData.user?.id) {
-        const photoFormData = new FormData();
-        photoFormData.append('photo', formData.profilePhoto);
-
-        await fetch(`/api/user/profile-photo`, {
-          method: 'POST',
-          body: photoFormData,
-        });
       }
 
       // Animación de éxito
