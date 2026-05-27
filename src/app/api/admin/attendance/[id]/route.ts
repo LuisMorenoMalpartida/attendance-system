@@ -4,15 +4,22 @@ import { verifyAuth } from '@/lib/auth';
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const admin = await verifyAuth(req);
+
     if (!admin || admin.role !== 'admin') {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+      return NextResponse.json(
+        { error: 'No autorizado' },
+        { status: 403 }
+      );
     }
 
-    const recordId = parseInt(params.id);
+    const { id } = await params;
+
+    const recordId = parseInt(id);
+
     const { type, timestamp, notes, is_manual } = await req.json();
 
     const result = await db.query(
@@ -24,15 +31,23 @@ export async function PUT(
     );
 
     if (result.rows.length === 0) {
-      return NextResponse.json({ error: 'Registro no encontrado' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Registro no encontrado' },
+        { status: 404 }
+      );
     }
 
     return NextResponse.json({
       message: 'Registro actualizado exitosamente',
       record: result.rows[0]
     });
+
   } catch (error) {
     console.error('Error al actualizar registro:', error);
-    return NextResponse.json({ error: 'Error interno' }, { status: 500 });
+
+    return NextResponse.json(
+      { error: 'Error interno' },
+      { status: 500 }
+    );
   }
 }
