@@ -107,7 +107,6 @@ export function AttendanceCard() {
           latitude: currentLocation?.latitude ?? null,
           longitude: currentLocation?.longitude ?? null,
           deviceInfo: navigator.userAgent,
-          timestamp: peruTimestamp, // 👈 Enviar timestamp
         }),
       });
 

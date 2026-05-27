@@ -20,17 +20,45 @@ function getPeruNowTimestamp(): string {
 
 function formatPeruTimestamp(timestamp: string): string {
   try {
-    const date = new Date(timestamp);
-    if (isNaN(date.getTime())) return timestamp;
-    const peruString = date.toLocaleString('en-US', { timeZone: 'America/Lima' });
-    const peruDate = new Date(peruString);
-    const y = peruDate.getFullYear();
-    const m = String(peruDate.getMonth() + 1).padStart(2, '0');
-    const d = String(peruDate.getDate()).padStart(2, '0');
-    const h = String(peruDate.getHours()).padStart(2, '0');
-    const min = String(peruDate.getMinutes()).padStart(2, '0');
-    const s = String(peruDate.getSeconds()).padStart(2, '0');
-    return `${y}-${m}-${d}T${h}:${min}:${s}`;
+    // Si el timestamp incluye zona (Z o +HH:MM), interpretarlo como instante UTC/offset
+    // y convertir al horario de Perú.
+    if (timestamp.includes('Z') || timestamp.match(/[+-]\d{2}:?\d{2}/)) {
+      const date = new Date(timestamp);
+      if (isNaN(date.getTime())) return timestamp;
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Lima',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false,
+      }).formatToParts(date);
+
+      const map: Record<string, string> = {};
+      for (const p of parts) {
+        if (p.type !== 'literal') map[p.type] = p.value;
+      }
+
+      const y = map.year;
+      const m = map.month;
+      const d = map.day;
+      const h = map.hour;
+      const min = map.minute;
+      const s = map.second;
+      return `${y}-${m}-${d}T${h}:${min}:${s}`;
+    }
+
+    // Si no incluye zona horaria, el valor guardado en la DB es 'naive' (hora local).
+    // En ese caso debemos tratar la cadena tal cual como hora local (sin convertirla),
+    // para no restar la diferencia UTC-5.
+    // Normalizar eliminando posibles milisegundos y zona imaginaria.
+    const naive = String(timestamp).split('.')[0];
+    // Asegurar que tenga segundos: "YYYY-MM-DDTHH:MM" -> añadir :00
+    const hasSeconds = /T\d{2}:\d{2}:\d{2}$/.test(naive);
+    if (hasSeconds) return naive;
+    const hasMinutes = /T\d{2}:\d{2}$/.test(naive);
+    if (hasMinutes) return `${naive}:00`;
+    // Si solo fecha
+    if (/^\d{4}-\d{2}-\d{2}$/.test(naive)) return `${naive}T12:00:00`;
+    return naive;
   } catch {
     return timestamp;
   }
@@ -100,8 +128,11 @@ export async function GET(req: NextRequest) {
       [user.userId, date]
     );
 
+    const last = lastRecord.rows[0] || null;
+    const lastFormatted = last ? { ...last, timestamp: formatPeruTimestamp(last.timestamp) } : null;
+
     return NextResponse.json({
-      lastRecord: lastRecord.rows[0] || null,
+      lastRecord: lastFormatted,
       todayRecords: todayRecords.rows.map((r: any) => ({
         ...r,
         timestamp: formatPeruTimestamp(r.timestamp),
