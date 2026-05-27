@@ -3,6 +3,10 @@ import { es } from 'date-fns/locale';
 
 export const PERU_TIMEZONE = 'America/Lima';
 
+// ============================================================
+// OBTENER FECHA/HORA ACTUAL EN PERÚ
+// ============================================================
+
 /**
  * Obtiene la fecha y hora actual en Perú como string (YYYY-MM-DDTHH:MM:SS)
  */
@@ -25,49 +29,85 @@ export function getPeruNowTimestamp(): string {
  * Obtiene la fecha actual en Perú como YYYY-MM-DD
  */
 export function getPeruToday(): string {
-  const now = new Date();
-  const peruString = now.toLocaleString('en-US', { timeZone: PERU_TIMEZONE });
+  return getPeruNowTimestamp().split('T')[0];
+}
+
+/**
+ * Convierte un timestamp ISO (UTC) a hora Perú sin timezone
+ */
+export function toPeruTimestamp(isoTimestamp: string): string {
+  const date = new Date(isoTimestamp);
+  const peruString = date.toLocaleString('en-US', { timeZone: PERU_TIMEZONE });
   const peruDate = new Date(peruString);
   
   const year = peruDate.getFullYear();
   const month = String(peruDate.getMonth() + 1).padStart(2, '0');
   const day = String(peruDate.getDate()).padStart(2, '0');
+  const hours = String(peruDate.getHours()).padStart(2, '0');
+  const minutes = String(peruDate.getMinutes()).padStart(2, '0');
+  const seconds = String(peruDate.getSeconds()).padStart(2, '0');
   
-  return `${year}-${month}-${day}`;
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
 }
 
+// ============================================================
+// PARSEO DE FECHAS (LA CLAVE DEL PROBLEMA)
+// ============================================================
+
 /**
- * Extrae solo la fecha (YYYY-MM-DD) de cualquier formato de timestamp
+ * Extrae solo la fecha (YYYY-MM-DD) de cualquier formato
  */
 function extractDate(timestamp: string): string {
-  // Si ya es solo fecha YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(timestamp)) {
-    return timestamp;
-  }
-  // Si es timestamp ISO: "2026-05-27T08:00:00" o "2026-05-27T05:00:00.000Z"
+  if (/^\d{4}-\d{2}-\d{2}$/.test(timestamp)) return timestamp;
   return timestamp.split('T')[0];
 }
 
 /**
- * Crea un objeto Date seguro a partir de una fecha string
+ * 👇 Parsea un timestamp SIN zona horaria como hora LOCAL
+ * "2026-05-27T17:47:39" → Date con 17:47 en hora local
+ * "2026-05-27" → Date con 12:00 en hora local
  */
-function safeDate(dateStr: string): Date {
-  const date = new Date(dateStr);
-  // Si es inválido, intentar extraer solo la fecha
-  if (isNaN(date.getTime())) {
-    const extracted = extractDate(dateStr);
-    return new Date(extracted + 'T12:00:00');
+function parseLocalDate(dateStr: string): Date {
+  // Extraer fecha y hora
+  const [datePart, timePart] = dateStr.split('T');
+  const [year, month, day] = datePart.split('-').map(Number);
+  
+  if (timePart) {
+    const [hours, minutes, seconds] = timePart.split(':').map(Number);
+    // new Date(año, mes-1, día, hora, min, seg) → SIEMPRE hora local
+    return new Date(year, month - 1, day, hours || 0, minutes || 0, seconds || 0);
   }
-  return date;
+  
+  // Solo fecha, usar mediodía para evitar cambios de zona
+  return new Date(year, month - 1, day, 12, 0, 0);
 }
+
+// ============================================================
+// FORMATEO DE HORAS
+// ============================================================
 
 /**
  * Formatea una hora (HH:MM)
+ * "2026-05-27T17:47:39" → "17:47"
+ * "2026-05-27T17:47:39.000Z" → hora Perú correcta
  */
 export function formatTime(timestamp: string | Date | null | undefined): string {
   if (!timestamp) return '--:--';
   
-  const date = typeof timestamp === 'string' ? safeDate(timestamp) : timestamp;
+  let date: Date;
+  
+  if (typeof timestamp === 'string') {
+    // Si tiene Z o +00:00, es UTC → convertir a Perú
+    if (timestamp.includes('Z') || timestamp.includes('+')) {
+      const peruTimestamp = toPeruTimestamp(timestamp);
+      date = parseLocalDate(peruTimestamp);
+    } else {
+      // Sin zona → es hora local
+      date = parseLocalDate(timestamp);
+    }
+  } else {
+    date = timestamp;
+  }
   
   if (isNaN(date.getTime())) return '--:--';
   
@@ -75,8 +115,36 @@ export function formatTime(timestamp: string | Date | null | undefined): string 
 }
 
 /**
+ * Formatea una hora con segundos (HH:MM:SS)
+ */
+export function formatTimeWithSeconds(timestamp: string | Date | null | undefined): string {
+  if (!timestamp) return '--:--:--';
+  
+  let date: Date;
+  
+  if (typeof timestamp === 'string') {
+    if (timestamp.includes('Z') || timestamp.includes('+')) {
+      date = parseLocalDate(toPeruTimestamp(timestamp));
+    } else {
+      date = parseLocalDate(timestamp);
+    }
+  } else {
+    date = timestamp;
+  }
+  
+  if (isNaN(date.getTime())) return '--:--:--';
+  
+  return format(date, 'HH:mm:ss');
+}
+
+// ============================================================
+// FORMATEO DE FECHAS
+// ============================================================
+
+/**
  * Formatea una fecha legible
- * Soporta: "2026-05-27", "2026-05-27T08:00:00", "2026-05-27T05:00:00.000Z"
+ * "2026-05-27" → "martes, 27 de mayo de 2026"
+ * "2026-05-27T17:47:39" → "martes, 27 de mayo de 2026"
  */
 export function formatDate(dateStr: string | Date | null | undefined): string {
   if (!dateStr) return '--/--/----';
@@ -84,9 +152,8 @@ export function formatDate(dateStr: string | Date | null | undefined): string {
   let date: Date;
   
   if (typeof dateStr === 'string') {
-    // Extraer solo la parte de la fecha
     const justDate = extractDate(dateStr);
-    date = new Date(justDate + 'T12:00:00');
+    date = parseLocalDate(justDate);
   } else {
     date = dateStr;
   }
@@ -105,8 +172,7 @@ export function formatShortDate(dateStr: string | Date | null | undefined): stri
   let date: Date;
   
   if (typeof dateStr === 'string') {
-    const justDate = extractDate(dateStr);
-    date = new Date(justDate + 'T12:00:00');
+    date = parseLocalDate(extractDate(dateStr));
   } else {
     date = dateStr;
   }
@@ -118,19 +184,35 @@ export function formatShortDate(dateStr: string | Date | null | undefined): stri
 
 /**
  * Formatea fecha y hora
+ * "2026-05-27T17:47:39" → "27/05/2026 a las 17:47"
  */
 export function formatDateTime(timestamp: string | Date | null | undefined): string {
   if (!timestamp) return '--/--/---- --:--';
   
-  const date = typeof timestamp === 'string' ? safeDate(timestamp) : timestamp;
+  let date: Date;
+  
+  if (typeof timestamp === 'string') {
+    if (timestamp.includes('Z') || timestamp.includes('+')) {
+      date = parseLocalDate(toPeruTimestamp(timestamp));
+    } else {
+      date = parseLocalDate(timestamp);
+    }
+  } else {
+    date = timestamp;
+  }
   
   if (isNaN(date.getTime())) return '--/--/---- --:--';
   
   return format(date, "dd/MM/yyyy 'a las' HH:mm", { locale: es });
 }
 
+// ============================================================
+// FORMATEO DE HORAS TRABAJADAS
+// ============================================================
+
 /**
- * Formatea horas trabajadas (decimal)
+ * Formatea horas trabajadas (decimal) a texto
+ * 8.75 → "8h 45m"
  */
 export function formatHoursWorked(hours: number | null | undefined): string {
   if (!hours && hours !== 0) return '--:--';
@@ -146,6 +228,7 @@ export function formatHoursWorked(hours: number | null | undefined): string {
 
 /**
  * Formatea horas trabajadas en HH:MM
+ * 8.75 → "08:45"
  */
 export function formatHoursDecimal(hours: number | null | undefined): string {
   if (!hours && hours !== 0) return '--:--';
@@ -156,30 +239,46 @@ export function formatHoursDecimal(hours: number | null | undefined): string {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 }
 
+// ============================================================
+// FORMATEO DE MES Y AÑO
+// ============================================================
+
 /**
  * Formatea un mes y año
+ * Date(2026, 4) → "mayo de 2026"
  */
 export function formatMonthYear(date: Date): string {
   return format(date, "MMMM 'de' yyyy", { locale: es });
 }
 
+// ============================================================
+// FORMATEO RELATIVO
+// ============================================================
+
 /**
  * Formatea una fecha relativa
+ * "hace 5 minutos", "hoy a las 17:47", "ayer a las 08:00"
  */
 export function formatRelativeTime(timestamp: string | Date | null | undefined): string {
   if (!timestamp) return '';
   
-  const date = typeof timestamp === 'string' ? safeDate(timestamp) : timestamp;
+  let date: Date;
+  
+  if (typeof timestamp === 'string') {
+    if (timestamp.includes('Z') || timestamp.includes('+')) {
+      date = parseLocalDate(toPeruTimestamp(timestamp));
+    } else {
+      date = parseLocalDate(timestamp);
+    }
+  } else {
+    date = timestamp;
+  }
   
   if (isNaN(date.getTime())) return '';
   
-  if (isToday(date)) {
-    return `Hoy a las ${formatTime(timestamp)}`;
-  }
-  
-  if (isYesterday(date)) {
-    return `Ayer a las ${formatTime(timestamp)}`;
-  }
+  if (isToday(date)) return `Hoy a las ${formatTime(timestamp)}`;
+  if (isYesterday(date)) return `Ayer a las ${formatTime(timestamp)}`;
   
   return format(date, "d 'de' MMMM 'a las' HH:mm", { locale: es });
 }
+
