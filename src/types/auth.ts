@@ -1,6 +1,12 @@
 export type UserRole = "admin" | "user";
 
 export interface AuthUser {
+  userId: number;
+  role: UserRole;
+  expires?: string;
+}
+
+export interface UserPublic {
   id: number;
   name: string;
   email: string;
@@ -10,7 +16,7 @@ export interface AuthUser {
 }
 
 export interface LoginCredentials {
-  email: string;
+  name: string;
   password: string;
 }
 

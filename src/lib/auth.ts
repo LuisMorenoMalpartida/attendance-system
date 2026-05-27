@@ -1,6 +1,7 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { NextRequest } from 'next/server';
+import type { AuthUser } from '@/types/auth';
 
 const secretKey = new TextEncoder().encode(
   process.env.JWT_SECRET || 'default_secret_change_this'
@@ -47,40 +48,26 @@ export async function createSession(userId: number, role: string) {
 
 export async function getSession() {
   const cookieStore = await cookies();
-
   const session = cookieStore.get(COOKIE_NAME)?.value;
-
   if (!session) return null;
-
   return await decrypt(session);
 }
 
 export async function logout() {
   const cookieStore = await cookies();
-
   cookieStore.delete(COOKIE_NAME);
 }
 
-interface AuthUser {
-  userId: number;
-  role: string;
-  expires?: string;
-}
-
-export async function verifyAuth(
-  req: NextRequest
-): Promise<AuthUser | null> {
+export async function verifyAuth(req: NextRequest): Promise<AuthUser | null> {
   const token = req.cookies.get(COOKIE_NAME)?.value;
-
   if (!token) return null;
 
   const payload = await decrypt(token);
-
   if (!payload) return null;
 
   return {
     userId: Number(payload.userId),
-    role: String(payload.role),
+    role: payload.role as AuthUser['role'],
     expires: payload.expires?.toString(),
   };
 }
