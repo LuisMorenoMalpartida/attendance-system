@@ -101,42 +101,49 @@ export function useRegister() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateStep(2)) return;
 
     setLoading(true);
     setError(null);
 
     try {
-      const formDataToSend = new FormData();
-      formDataToSend.append('name', formData.name.trim());
-      formDataToSend.append('email', formData.email.trim());
-      formDataToSend.append('password', formData.password);
-      formDataToSend.append('companyName', formData.companyName.trim());
-      formDataToSend.append('role', 'user'); // Siempre será 'user'
-      
-      if (formData.profilePhoto) {
-        formDataToSend.append('profilePhoto', formData.profilePhoto);
-      }
-
-      const response = await fetch('/api/auth/register', {
+      // Primero registrar usuario
+      const registerResponse = await fetch('/api/auth/register', {
         method: 'POST',
-        body: formDataToSend,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.name.trim(),
+          email: formData.email.trim(),
+          password: formData.password,
+          companyName: formData.companyName.trim(),
+          role: 'user',
+        }),
       });
 
-      const data = await response.json();
+      const registerData = await registerResponse.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Error al registrar usuario');
+      if (!registerResponse.ok) {
+        throw new Error(registerData.error || 'Error al registrar usuario');
       }
 
-      // Animación de éxito antes de redirigir
+      // Si hay foto, subirla
+      if (formData.profilePhoto && registerData.user?.id) {
+        const photoFormData = new FormData();
+        photoFormData.append('photo', formData.profilePhoto);
+
+        await fetch(`/api/user/profile-photo`, {
+          method: 'POST',
+          body: photoFormData,
+        });
+      }
+
+      // Animación de éxito
       await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Redirigir al login con mensaje de éxito
+
       router.push('/login?registered=true');
     } catch (err: any) {
-      setError({ 
+      setError({
         error: err.message || 'Error de conexión',
         code: 'REGISTER_ERROR'
       });
