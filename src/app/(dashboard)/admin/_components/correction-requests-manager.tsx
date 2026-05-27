@@ -32,7 +32,13 @@ interface CorrectionRequest {
     created_at: string;
 }
 
-export function CorrectionRequestsManager() {
+// 👇 Interfaz para las props
+interface CorrectionRequestsManagerProps {
+    onStatusChange?: () => void;
+}
+
+// 👇 Usar la interfaz en el componente
+export function CorrectionRequestsManager({ onStatusChange }: CorrectionRequestsManagerProps) {
     const [requests, setRequests] = useState<CorrectionRequest[]>([]);
     const [loading, setLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState('pending');
@@ -81,6 +87,7 @@ export function CorrectionRequestsManager() {
             if (response.ok) {
                 setReviewNotes('');
                 fetchRequests();
+                onStatusChange?.(); // 👈 Notificar al padre que cambió el estado
             }
         } catch (error) {
             console.error('Error al aprobar:', error);
@@ -109,6 +116,7 @@ export function CorrectionRequestsManager() {
             if (response.ok) {
                 setReviewNotes('');
                 fetchRequests();
+                onStatusChange?.(); // 👈 Notificar al padre que cambió el estado
             }
         } catch (error) {
             console.error('Error al rechazar:', error);
@@ -152,7 +160,6 @@ export function CorrectionRequestsManager() {
             <div className="relative h-1 bg-gradient-to-r from-amber-600 via-orange-600 to-red-600" />
             
             <div className="p-6">
-                {/* Header */}
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
                     <div>
                         <h2 className="text-xl font-bold text-slate-900 dark:text-white">
@@ -163,7 +170,6 @@ export function CorrectionRequestsManager() {
                         </p>
                     </div>
 
-                    {/* Filtros */}
                     <div className="flex gap-2">
                         {[
                             { value: 'pending', label: 'Pendientes', color: 'border-yellow-300 bg-yellow-50' },
@@ -191,7 +197,6 @@ export function CorrectionRequestsManager() {
                     </div>
                 </div>
 
-                {/* Lista de solicitudes */}
                 {loading ? (
                     <div className="space-y-3">
                         {[...Array(3)].map((_, i) => (
@@ -250,7 +255,7 @@ export function CorrectionRequestsManager() {
                                     </div>
 
                                     <p className="text-xs text-slate-600 dark:text-slate-400 italic">
-                                        "{request.reason}"
+                                        &ldquo;{request.reason}&rdquo;
                                     </p>
 
                                     <button
@@ -262,7 +267,6 @@ export function CorrectionRequestsManager() {
                                         {expandedId === request.id ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                                     </button>
 
-                                    {/* Acciones expandibles */}
                                     {expandedId === request.id && request.status === 'pending' && (
                                         <div className="pt-3 space-y-3 border-t border-slate-200 dark:border-slate-700">
                                             <Textarea
@@ -305,7 +309,6 @@ export function CorrectionRequestsManager() {
                                         </div>
                                     )}
 
-                                    {/* Mostrar resultado si ya fue procesada */}
                                     {request.status !== 'pending' && (
                                         <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
                                             <p className="text-xs text-slate-500">

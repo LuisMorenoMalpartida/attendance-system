@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { AdminHeader } from './_components/admin-header';
 import { AdminAttendanceCard } from './_components/admin-attendance-card';
 import { AdminStats } from './_components/admin-stats';
 import { UsersManagement } from './_components/users-management';
@@ -14,19 +13,15 @@ import {
   Users, 
   CalendarDays,
   Settings,
-  Send,
   LayoutDashboard,
   ChevronRight,
   Menu,
-  X,
   LogOut,
   Shield,
   Home,
-  UserCheck,
   FileText,
   Bell,
   TrendingUp,
-  AlertCircle,
 } from 'lucide-react';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
@@ -53,7 +48,6 @@ const menuItems = [
     icon: Users,
     description: 'Gestionar usuarios',
     color: 'emerald',
-    badge: null,
   },
   {
     id: 'corrections',
@@ -61,7 +55,14 @@ const menuItems = [
     icon: FileText,
     description: 'Solicitudes pendientes',
     color: 'amber',
-    badge: 3,
+    // badge se actualizará dinámicamente
+  },
+  {
+    id: 'reports',
+    label: 'Reportes',
+    icon: TrendingUp,
+    description: 'Estadísticas y exportación',
+    color: 'purple',
   },
   {
     id: 'settings',
@@ -78,10 +79,17 @@ export default function AdminDashboardPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userName, setUserName] = useState('Administrador');
+  const [pendingCorrections, setPendingCorrections] = useState(0); // 👈 Estado dinámico
 
   useEffect(() => {
     fetchUserInfo();
+    fetchPendingCount(); // 👈 Cargar conteo al iniciar
   }, []);
+
+  // 👇 También actualizar cuando cambie a la pestaña de correcciones
+  useEffect(() => {
+    fetchPendingCount();
+  }, [activeMenu]);
 
   const fetchUserInfo = async () => {
     try {
@@ -92,6 +100,22 @@ export default function AdminDashboardPage() {
       }
     } catch (error) {
       console.error('Error al obtener info:', error);
+    }
+  };
+
+  // Obtener conteo real de solicitudes pendientes
+  const fetchPendingCount = async () => {
+    try {
+      const response = await fetch('/api/correction-requests');
+      if (response.ok) {
+        const data = await response.json();
+        const pending = (data.requests || []).filter(
+          (r: any) => r.status === 'pending'
+        ).length;
+        setPendingCorrections(pending);
+      }
+    } catch (error) {
+      console.error('Error al obtener conteo:', error);
     }
   };
 
@@ -121,6 +145,14 @@ export default function AdminDashboardPage() {
 
   const activeMenuItem = menuItems.find(item => item.id === activeMenu);
 
+  // 👇 Función para obtener el badge dinámico
+  const getItemBadge = (item: typeof menuItems[0]) => {
+    if (item.id === 'corrections' && pendingCorrections > 0) {
+      return pendingCorrections;
+    }
+    return null;
+  };
+
   const renderContent = () => {
     switch (activeMenu) {
       case 'my-attendance':
@@ -140,7 +172,7 @@ export default function AdminDashboardPage() {
       case 'users':
         return <UsersManagement />;
       case 'corrections':
-        return <CorrectionRequestsManager />;
+        return <CorrectionRequestsManager onStatusChange={fetchPendingCount} />;
       case 'reports':
         return (
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700/60 p-12 text-center">
@@ -199,36 +231,39 @@ export default function AdminDashboardPage() {
 
         {/* Menú */}
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {menuItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => {
-                setActiveMenu(item.id);
-                setMobileMenuOpen(false);
-              }}
-              className={`
-                menu-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl
-                transition-all duration-200 group relative
-                ${activeMenu === item.id 
-                  ? `${getColorClasses(item.color).light} ${getColorClasses(item.color).text} font-semibold` 
-                  : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
-                }
-              `}
-            >
-              <item.icon className={`w-5 h-5 flex-shrink-0 ${activeMenu === item.id ? getColorClasses(item.color).text : ''}`} />
-              <div className={`flex-1 text-left overflow-hidden transition-all duration-300 ${sidebarOpen ? 'w-auto opacity-100' : 'w-0 opacity-0'}`}>
-                <span className="text-sm whitespace-nowrap">{item.label}</span>
-              </div>
-              {item.badge && (
-                <Badge className="bg-red-500 text-white text-xs h-5 min-w-5 flex items-center justify-center px-1.5">
-                  {item.badge}
-                </Badge>
-              )}
-              {activeMenu === item.id && (
-                <div className={`absolute right-2 w-1.5 h-6 rounded-full ${getColorClasses(item.color).bg}`} />
-              )}
-            </button>
-          ))}
+          {menuItems.map((item) => {
+            const badgeCount = getItemBadge(item);
+            return (
+              <button
+                key={item.id}
+                onClick={() => {
+                  setActiveMenu(item.id);
+                  setMobileMenuOpen(false);
+                }}
+                className={`
+                  menu-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl
+                  transition-all duration-200 group relative
+                  ${activeMenu === item.id 
+                    ? `${getColorClasses(item.color).light} ${getColorClasses(item.color).text} font-semibold` 
+                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
+                  }
+                `}
+              >
+                <item.icon className={`w-5 h-5 flex-shrink-0 ${activeMenu === item.id ? getColorClasses(item.color).text : ''}`} />
+                <div className={`flex-1 flex items-center gap-2 text-left overflow-hidden transition-all duration-300 ${sidebarOpen ? 'w-auto opacity-100' : 'w-0 opacity-0'}`}>
+                  <span className="text-sm whitespace-nowrap">{item.label}</span>
+                  {badgeCount && (
+                    <Badge className="bg-red-500 hover:bg-red-600 text-white text-xs h-5 min-w-5 flex items-center justify-center px-1.5 animate-pulse">
+                      {badgeCount}
+                    </Badge>
+                  )}
+                </div>
+                {activeMenu === item.id && (
+                  <div className={`absolute right-2 w-1.5 h-6 rounded-full ${getColorClasses(item.color).bg}`} />
+                )}
+              </button>
+            );
+          })}
         </nav>
 
         {/* Footer del sidebar */}
@@ -251,7 +286,6 @@ export default function AdminDashboardPage() {
         <header className="sticky top-0 z-30 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/60 dark:border-slate-800/60">
           <div className="flex items-center justify-between px-6 h-16">
             <div className="flex items-center gap-4">
-              {/* Botón menú móvil */}
               <button
                 onClick={() => setMobileMenuOpen(true)}
                 className="lg:hidden p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
@@ -259,7 +293,6 @@ export default function AdminDashboardPage() {
                 <Menu className="w-5 h-5" />
               </button>
 
-              {/* Toggle sidebar */}
               <button
                 onClick={() => setSidebarOpen(!sidebarOpen)}
                 className="hidden lg:flex p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
@@ -267,7 +300,6 @@ export default function AdminDashboardPage() {
                 <ChevronRight className={`w-5 h-5 transition-transform duration-300 ${sidebarOpen ? 'rotate-180' : ''}`} />
               </button>
 
-              {/* Breadcrumb */}
               <div className="hidden sm:flex items-center gap-2 text-sm">
                 <span className="text-slate-400">Admin</span>
                 <ChevronRight className="w-4 h-4 text-slate-400" />
@@ -280,7 +312,9 @@ export default function AdminDashboardPage() {
             <div className="flex items-center gap-3">
               <button className="relative p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
                 <Bell className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
+                {pendingCorrections > 0 && (
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                )}
               </button>
               
               <div className="flex items-center gap-2 pl-3 border-l border-slate-200 dark:border-slate-800">
@@ -299,7 +333,6 @@ export default function AdminDashboardPage() {
 
         {/* Contenido */}
         <main className="flex-1 p-6">
-          {/* Título de sección */}
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
               {activeMenuItem?.label}
