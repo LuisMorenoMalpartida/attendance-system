@@ -1,22 +1,22 @@
+// src/app/api/users/[userId]/photo/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { head } from '@vercel/blob';
+import { getDownloadUrl, put, del } from '@vercel/blob';
 import { db } from '@/lib/db';
 import { verifyAuth } from '@/lib/auth';
 
+// GET - Obtener foto de perfil
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
-    // Verificar autenticación
-    const user = await verifyAuth(req);
-    if (!user) {
+    const authUser = await verifyAuth(req);
+    if (!authUser) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
     const { userId } = await params;
 
-    // Obtener la URL de la foto desde la base de datos
     const result = await db.query(
       'SELECT profile_photo FROM users WHERE id = $1',
       [parseInt(userId)]
@@ -25,23 +25,26 @@ export async function GET(
     const photoUrl = result.rows[0]?.profile_photo;
 
     if (!photoUrl) {
-      return new NextResponse('No photo', { status: 404 });
+      return NextResponse.json({ error: 'Usuario sin foto de perfil' }, { status: 404 });
     }
 
-    // Extraer pathname y obtener blob con URL temporal
-    const urlObj = new URL(photoUrl);
-    const pathname = urlObj.pathname.substring(1);
+    console.log('🔍 Generando URL temporal para:', photoUrl);
     
-    const blob = await head(pathname);
-    
-    if (!blob) {
-      return new NextResponse('Not found', { status: 404 });
-    }
+    // SOLO UN ARGUMENTO: la URL completa
+    const downloadUrl = await getDownloadUrl(photoUrl);
 
-    // Redirigir a la URL temporal del blob
-    return NextResponse.redirect(blob.url);
-  } catch (error) {
-    console.error('Error al servir imagen:', error);
-    return new NextResponse('Error', { status: 500 });
+    console.log(' URL temporal generada:', downloadUrl);
+    
+    // Devolver la URL firmada como JSON
+    return NextResponse.json({ url: downloadUrl });
+    
+  } catch (error: any) {
+    console.error(' Error al obtener foto:', error);
+    return NextResponse.json({ 
+      error: 'Error al obtener la imagen',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    }, { status: 500 });
   }
 }
+
+// ... PUT y DELETE se quedan igual

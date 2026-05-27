@@ -45,13 +45,13 @@ export async function uploadImage(
     const randomString = Math.random().toString(36).substring(2, 8);
     const uniqueName = `${folder}/${timestamp}-${randomString}.${extension}`;
 
-    // Subir a Vercel Blob
+    // Subir a Vercel Blob con acceso privado
     const blob = await put(uniqueName, buffer, {
-      access: 'public',
+      access: 'private', // Explícitamente privado
       contentType: file.type,
     });
 
-    console.log('✅ Imagen subida a Vercel Blob:', blob.url);
+    console.log(' Imagen subida a Vercel Blob (privado):', blob.url);
 
     return {
       url: blob.url,
@@ -59,7 +59,7 @@ export async function uploadImage(
       contentType: file.type,
     };
   } catch (error) {
-    console.error('❌ Error al subir imagen:', error);
+    console.error(' Error al subir imagen:', error);
     throw error;
   }
 }
@@ -71,10 +71,10 @@ export async function deleteImage(url: string): Promise<boolean> {
     const pathname = urlObj.pathname.substring(1); // Quitar el / inicial
     
     await del(pathname);
-    console.log('✅ Imagen eliminada:', pathname);
+    console.log(' Imagen eliminada:', pathname);
     return true;
   } catch (error) {
-    console.warn('⚠️ No se pudo eliminar la imagen:', error);
+    console.warn(' No se pudo eliminar la imagen:', error);
     return false;
   }
 }
@@ -90,7 +90,7 @@ export async function updateImage(
     try {
       await deleteImage(oldUrl);
     } catch (error) {
-      console.warn('⚠️ No se pudo eliminar la imagen anterior:', error);
+      console.warn(' No se pudo eliminar la imagen anterior:', error);
     }
   }
 
