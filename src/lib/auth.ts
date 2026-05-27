@@ -8,6 +8,7 @@ const secretKey = new TextEncoder().encode(
 );
 
 const COOKIE_NAME = 'auth-token';
+const COOKIE_MAX_AGE = 24 * 60 * 60; // 24 horas en segundos
 
 export async function encrypt(payload: any) {
   return await new SignJWT(payload)
@@ -27,12 +28,12 @@ export async function decrypt(token: string) {
 }
 
 export async function createSession(userId: number, role: string) {
-  const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const expires = new Date(Date.now() + COOKIE_MAX_AGE * 1000);
 
   const session = await encrypt({
     userId,
     role,
-    expires,
+    expires: expires.toISOString(), // Guardar como string ISO
   });
 
   const cookieStore = await cookies();
@@ -41,8 +42,9 @@ export async function createSession(userId: number, role: string) {
     expires,
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    sameSite: 'strict',
     path: '/',
+    maxAge: COOKIE_MAX_AGE,
   });
 }
 
@@ -55,7 +57,15 @@ export async function getSession() {
 
 export async function logout() {
   const cookieStore = await cookies();
-  cookieStore.delete(COOKIE_NAME);
+  
+  cookieStore.set(COOKIE_NAME, '', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    path: '/',
+    maxAge: 0,
+    expires: new Date(0),
+  });
 }
 
 export async function verifyAuth(req: NextRequest): Promise<AuthUser | null> {
@@ -64,6 +74,22 @@ export async function verifyAuth(req: NextRequest): Promise<AuthUser | null> {
 
   const payload = await decrypt(token);
   if (!payload) return null;
+
+  // Verificar expiración de forma segura
+  if (payload.expires) {
+    try {
+      // Convertir a Date, maneja string, number o Date
+      const expiresDate = new Date(payload.expires as string | number);
+      
+      // Verificar que sea una fecha válida
+      if (!isNaN(expiresDate.getTime()) && expiresDate < new Date()) {
+        return null; // Token expirado
+      }
+    } catch {
+      // Si no se puede parsear, ignorar la expiración
+      console.warn('No se pudo verificar expiración del token');
+    }
+  }
 
   return {
     userId: Number(payload.userId),
