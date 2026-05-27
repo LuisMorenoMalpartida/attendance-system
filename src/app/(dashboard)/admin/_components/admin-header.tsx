@@ -6,30 +6,48 @@ import {
   Shield, 
   LogOut, 
   Clock, 
-  Bell, 
-  User,
+  Bell,
   ChevronDown,
   Settings,
   Users,
-  Menu,
-  X
 } from 'lucide-react';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 
 export function AdminHeader() {
   const router = useRouter();
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const [currentTime, setCurrentTime] = useState<string>('--:--:--');
+  const [currentDate, setCurrentDate] = useState<string>('');
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notifications, setNotifications] = useState(3);
   const [userName, setUserName] = useState('Administrador');
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     fetchUserInfo();
     
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
+    const updateDateTime = () => {
+      const now = new Date();
+      setCurrentTime(
+        now.toLocaleTimeString('es-ES', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          second: '2-digit'
+        })
+      );
+      setCurrentDate(
+        now.toLocaleDateString('es-ES', { 
+          weekday: 'long', 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric' 
+        })
+      );
+    };
+
+    updateDateTime();
+    const timer = setInterval(updateDateTime, 1000);
 
     return () => clearInterval(timer);
   }, []);
@@ -47,11 +65,13 @@ export function AdminHeader() {
   };
 
   useGSAP(() => {
-    gsap.fromTo('.header-element', 
-      { opacity: 0, y: -10 },
-      { opacity: 1, y: 0, duration: 0.3, stagger: 0.1, ease: 'power2.out' }
-    );
-  }, []);
+    if (mounted) {
+      gsap.fromTo('.header-element', 
+        { opacity: 0, y: -10 },
+        { opacity: 1, y: 0, duration: 0.3, stagger: 0.1, ease: 'power2.out' }
+      );
+    }
+  }, [mounted]);
 
   const handleLogout = async () => {
     try {
@@ -87,13 +107,9 @@ export function AdminHeader() {
                   Admin
                 </span>
               </div>
+              {/* ✅ Solo mostrar cuando esté montado */}
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                {currentTime.toLocaleDateString('es-ES', { 
-                  weekday: 'long', 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric' 
-                })}
+                {mounted ? currentDate : 'Cargando...'}
               </p>
             </div>
           </div>
@@ -101,12 +117,9 @@ export function AdminHeader() {
           {/* Hora actual */}
           <div className="hidden md:flex items-center gap-2 header-element">
             <div className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800">
+              {/* Mostrar placeholder hasta que monte */}
               <span className="text-2xl font-mono font-bold text-slate-900 dark:text-white">
-                {currentTime.toLocaleTimeString('es-ES', { 
-                  hour: '2-digit', 
-                  minute: '2-digit',
-                  second: '2-digit'
-                })}
+                {currentTime}
               </span>
             </div>
           </div>
