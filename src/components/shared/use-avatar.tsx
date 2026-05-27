@@ -1,18 +1,27 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { User } from 'lucide-react';
 
 interface UserAvatarProps {
+  userId: number;
   src: string | null;
   alt: string;
   size?: number;
   className?: string;
 }
 
-export function UserAvatar({ src, alt, size = 40, className = '' }: UserAvatarProps) {
+export function UserAvatar({ userId, src, alt, size = 40, className = '' }: UserAvatarProps) {
+  const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [error, setError] = useState(false);
+
+  useEffect(() => {
+    if (src) {
+      // Usar la API proxy para obtener la imagen
+      setImageSrc(`/api/images/profile/${userId}`);
+    }
+  }, [src, userId]);
 
   if (!src || error) {
     return (
@@ -31,13 +40,13 @@ export function UserAvatar({ src, alt, size = 40, className = '' }: UserAvatarPr
       style={{ width: size, height: size }}
     >
       <Image
-        src={src}
+        src={imageSrc || '/default-avatar.png'}
         alt={alt}
         width={size}
         height={size}
         className="object-cover"
         onError={() => setError(true)}
-        unoptimized // Para URLs externas de Vercel Blob
+        unoptimized
       />
     </div>
   );

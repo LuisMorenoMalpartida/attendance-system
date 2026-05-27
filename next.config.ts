@@ -10,6 +10,8 @@ const nextConfig = {
         pathname: '/**',
       },
     ],
+    // Permite imágenes locales y de la API
+    unoptimized: true,
   },
 };
 
