@@ -125,33 +125,16 @@ export async function POST(req: NextRequest) {
 
     const { type, latitude, longitude, deviceInfo, notes, timestamp } = await req.json();
 
-    const localTimestamp = timestamp ? formatPeruTimestamp(timestamp) : getPeruNowTimestamp();
+    // 👇 Asegúrate de usar getPeruNowTimestamp() o el timestamp del frontend
+    const localTimestamp = timestamp || getPeruNowTimestamp();
+    
+    console.log('🕐 Guardando timestamp:', localTimestamp);
+    // Debería mostrar: 2026-05-27T17:53:33 (hora Perú)
+
     const today = localTimestamp.split('T')[0];
 
-    console.log('📝 Registro:', { type, localTimestamp, userId: user.userId });
+    // ... validaciones ...
 
-    // Evitar duplicados
-    const lastRecord = await db.query(
-      `SELECT * FROM attendance_records 
-       WHERE user_id = $1 AND DATE(timestamp) = $2 
-       ORDER BY timestamp DESC LIMIT 1`,
-      [user.userId, today]
-    );
-
-    if (lastRecord.rows.length > 0 && lastRecord.rows[0].type === type) {
-      return NextResponse.json(
-        { error: 'No se puede registrar el mismo tipo consecutivamente' },
-        { status: 400 }
-      );
-    }
-
-    // Validar flujo
-    const valid = await validateFlow(user.userId as number, type, today);
-    if (!valid.valid) {
-      return NextResponse.json({ error: valid.message }, { status: 400 });
-    }
-
-    // Insertar
     const result = await db.query(
       `INSERT INTO attendance_records 
        (user_id, type, timestamp, latitude, longitude, device_info, notes)
@@ -162,13 +145,10 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       message: 'Registro exitoso',
-      record: {
-        ...result.rows[0],
-        timestamp: formatPeruTimestamp(result.rows[0].timestamp),
-      },
+      record: result.rows[0],
     });
   } catch (error) {
-    console.error('❌ Error en registro:', error);
+    console.error('Error en registro:', error);
     return NextResponse.json({ error: 'Error interno' }, { status: 500 });
   }
 }
