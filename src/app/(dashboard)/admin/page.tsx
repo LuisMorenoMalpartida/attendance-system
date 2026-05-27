@@ -5,6 +5,7 @@ import { AdminHeader } from './_components/admin-header';
 import { AdminAttendanceCard } from './_components/admin-attendance-card';
 import { AdminStats } from './_components/admin-stats';
 import { UsersManagement } from './_components/users-management';
+import { AttendanceCalendarView } from './_components/attendance-calendar-view';
 import { AdminAttendanceHistory } from './_components/admin-attendance-history';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
@@ -27,31 +28,31 @@ export default function AdminDashboardPage() {
           <TabsList className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
             <TabsTrigger 
               value="my-attendance"
-              className="flex items-center justify-center gap-2 data-[state=active]:bg-linear-to-r data-[state=active]:from-blue-600 data-[state=active]:to-purple-600 data-[state=active]:text-white rounded-lg py-2.5"
+              className="flex items-center justify-center gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-purple-600 data-[state=active]:text-white rounded-lg py-2.5"
             >
               <Clock className="w-4 h-4" />
               <span className="hidden sm:inline">Mi Asistencia</span>
             </TabsTrigger>
             
             <TabsTrigger 
+              value="calendar"
+              className="flex items-center justify-center gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-cyan-600 data-[state=active]:to-blue-600 data-[state=active]:text-white rounded-lg py-2.5"
+            >
+              <CalendarDays className="w-4 h-4" />
+              <span className="hidden sm:inline">Calendario</span>
+            </TabsTrigger>
+            
+            <TabsTrigger 
               value="users"
-              className="flex items-center justify-center gap-2 data-[state=active]:bg-linear-to-r data-[state=active]:from-emerald-600 data-[state=active]:to-teal-600 data-[state=active]:text-white rounded-lg py-2.5"
+              className="flex items-center justify-center gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-emerald-600 data-[state=active]:to-teal-600 data-[state=active]:text-white rounded-lg py-2.5"
             >
               <Users className="w-4 h-4" />
               <span className="hidden sm:inline">Usuarios</span>
             </TabsTrigger>
             
             <TabsTrigger 
-              value="all-attendance"
-              className="flex items-center justify-center gap-2 data-[state=active]:bg-linear-to-r data-[state=active]:from-purple-600 data-[state=active]:to-pink-600 data-[state=active]:text-white rounded-lg py-2.5"
-            >
-              <CalendarDays className="w-4 h-4" />
-              <span className="hidden sm:inline">Registros</span>
-            </TabsTrigger>
-            
-            <TabsTrigger 
               value="settings"
-              className="flex items-center justify-center gap-2 data-[state=active]:bg-linear-to-r data-[state=active]:from-orange-600 data-[state=active]:to-red-600 data-[state=active]:text-white rounded-lg py-2.5"
+              className="flex items-center justify-center gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-600 data-[state=active]:to-red-600 data-[state=active]:text-white rounded-lg py-2.5"
             >
               <Settings className="w-4 h-4" />
               <span className="hidden sm:inline">Ajustes</span>
@@ -59,7 +60,7 @@ export default function AdminDashboardPage() {
           </TabsList>
 
           {/* Mi Asistencia (Admin) */}
-          <TabsContent value="my-attendance" className="mt-6 space-y-0">
+          <TabsContent value="my-attendance" className="mt-6">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 space-y-6">
                 <AdminAttendanceCard />
@@ -71,28 +72,21 @@ export default function AdminDashboardPage() {
             </div>
           </TabsContent>
 
+          {/* Calendario de Asistencia */}
+          <TabsContent value="calendar" className="mt-6">
+            <AttendanceCalendarView />
+          </TabsContent>
+
           {/* Gestión de Usuarios */}
           <TabsContent value="users" className="mt-6">
             <UsersManagement />
-          </TabsContent>
-
-          {/* Todos los Registros */}
-          <TabsContent value="all-attendance" className="mt-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2">
-                <AdminAttendanceHistory isOwnAttendance={false} />
-              </div>
-              <div className="space-y-6">
-                <AdminStats isOwnStats={false} />
-              </div>
-            </div>
           </TabsContent>
 
           {/* Configuración */}
           <TabsContent value="settings" className="mt-6">
             <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-8">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-xl bg-linear-to-br from-orange-500 to-red-500 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
                   <Settings className="w-5 h-5 text-white" />
                 </div>
                 <div>

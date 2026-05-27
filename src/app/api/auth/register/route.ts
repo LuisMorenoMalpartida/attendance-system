@@ -93,13 +93,20 @@ export async function POST(req: NextRequest) {
 
     // Crear horario laboral por defecto para usuarios
     if (role === 'user') {
-      for (let day = 0; day <= 4; day++) {
+      // Lunes a Viernes: 08:00 - 17:45
+      for (let day = 1; day <= 5; day++) {
         await db.query(
           `INSERT INTO work_schedules (user_id, day_of_week, start_time, end_time, tolerance_minutes)
-           VALUES ($1, $2, '08:00', '17:45', 15)`,
+       VALUES ($1, $2, '08:00', '17:45', 15)`,
           [result.rows[0].id, day]
         );
       }
+      // Sábado: 09:00 - 12:00
+      await db.query(
+        `INSERT INTO work_schedules (user_id, day_of_week, start_time, end_time, tolerance_minutes)
+     VALUES ($1, 6, '09:00', '12:00', 15)`,
+        [result.rows[0].id]
+      );
     }
 
     return NextResponse.json({
