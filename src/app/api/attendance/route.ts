@@ -2,218 +2,108 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyAuth } from '@/lib/auth';
 
-// GET - Obtener último registro del día
 export async function GET(req: NextRequest) {
   try {
-    const user = await verifyAuth(req);
-    if (!user) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    const admin = await verifyAuth(req);
+    if (!admin || admin.role !== 'admin') {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
 
     const { searchParams } = new URL(req.url);
-    const date = searchParams.get('date') || getPeruToday();
+    const year = searchParams.get('year') || new Date().getFullYear().toString();
+    const month = searchParams.get('month') || (new Date().getMonth() + 1).toString();
+    const own = searchParams.get('own');
 
-    // Obtener el último registro del día
-    const lastRecord = await db.query(
-      `SELECT * FROM attendance_records 
-       WHERE user_id = $1 
-       AND DATE(timestamp) = $2 
-       ORDER BY timestamp DESC 
-       LIMIT 1`,
-      [user.userId, date]
-    );
+    let query = `
+      SELECT 
+        ar.id, ar.user_id, u.name as user_name, ar.type, 
+        ar.timestamp, ar.notes, ar.is_manual, ar.latitude, ar.longitude,
+        DATE(ar.timestamp) as date
+      FROM attendance_records ar
+      JOIN users u ON ar.user_id = u.id
+      WHERE EXTRACT(YEAR FROM ar.timestamp) = $1
+      AND EXTRACT(MONTH FROM ar.timestamp) = $2
+    `;
 
-    // Obtener todos los registros del día
-    const todayRecords = await db.query(
-      `SELECT * FROM attendance_records 
-       WHERE user_id = $1 
-       AND DATE(timestamp) = $2 
-       ORDER BY timestamp ASC`,
-      [user.userId, date]
-    );
+    const params: any[] = [year, month];
 
-    return NextResponse.json({
-      lastRecord: lastRecord.rows[0] || null,
-      todayRecords: todayRecords.rows,
+    if (own === 'true') {
+      query += ' AND ar.user_id = $3';
+      params.push(admin.userId);
+    }
+
+    query += ' ORDER BY DATE(ar.timestamp) DESC, ar.timestamp ASC';
+
+    const result = await db.query(query, params);
+
+    // 👇 Normalizar timestamps
+    const normalizedRows = result.rows.map((row: any) => ({
+      ...row,
+      timestamp: normalizeTimestamp(row.timestamp),
+    }));
+
+    // Agrupar por fecha
+    const recordsByDate: Record<string, any> = {};
+    
+    normalizedRows.forEach((record: any) => {
+      const date = record.date;
+      if (!recordsByDate[date]) {
+        recordsByDate[date] = {
+          date,
+          records: [],
+          hoursWorked: null,
+        };
+      }
+      recordsByDate[date].records.push(record);
     });
+
+    // Calcular horas trabajadas por día
+    const records = Object.values(recordsByDate).map((day: any) => {
+      const checkIn = day.records.find((r: any) => r.type === 'check_in');
+      const checkOut = day.records.find((r: any) => r.type === 'check_out');
+      
+      if (checkIn && checkOut) {
+        const diff = new Date(checkOut.timestamp).getTime() - new Date(checkIn.timestamp).getTime();
+        
+        const lunchOut = day.records.find((r: any) => r.type === 'lunch_out');
+        const lunchIn = day.records.find((r: any) => r.type === 'lunch_in');
+        
+        let lunchTime = 0;
+        if (lunchOut && lunchIn) {
+          lunchTime = new Date(lunchIn.timestamp).getTime() - new Date(lunchOut.timestamp).getTime();
+        }
+        
+        day.hoursWorked = (diff - lunchTime) / (1000 * 60 * 60);
+      }
+      
+      return day;
+    });
+
+    return NextResponse.json({ records });
   } catch (error) {
     console.error('Error al obtener registros:', error);
-    return NextResponse.json(
-      { error: 'Error interno del servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Error interno' }, { status: 500 });
   }
 }
 
-// POST - Registrar asistencia
-export async function POST(req: NextRequest) {
+// 👇 Misma función normalizeTimestamp
+function normalizeTimestamp(timestamp: string): string {
   try {
-    const user = await verifyAuth(req);
-    if (!user) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
-
-    const { type, latitude, longitude, deviceInfo, notes, timestamp } = await req.json();
-
-    // 👇 Convertir a hora Perú sin timezone
-    const localTimestamp = timestamp 
-      ? convertToPeruTimestamp(timestamp) 
-      : getPeruNowTimestamp();
-
-    const today = localTimestamp.split('T')[0];
-
-    console.log('🕐 Hora original:', timestamp);
-    console.log('🕐 Hora Perú guardada:', localTimestamp);
-
-    // Verificar horario laboral
-    const schedule = await db.query(
-      `SELECT * FROM work_schedules 
-       WHERE user_id = $1 AND day_of_week = $2 AND is_active = true`,
-      [user.userId, new Date().getDay()]
-    );
-
-    // Evitar duplicados consecutivos
-    const lastRecord = await db.query(
-      `SELECT * FROM attendance_records 
-       WHERE user_id = $1 
-       AND DATE(timestamp) = $2 
-       ORDER BY timestamp DESC LIMIT 1`,
-      [user.userId, today]
-    );
-
-    if (lastRecord.rows.length > 0 && lastRecord.rows[0].type === type) {
-      return NextResponse.json(
-        { error: 'No se puede registrar el mismo tipo consecutivamente' },
-        { status: 400 }
-      );
-    }
-
-    // Validar flujo diario
-    const validFlow = await validateAttendanceFlow(user.userId as number, type, today);
-    if (!validFlow.valid) {
-      return NextResponse.json(
-        { error: validFlow.message },
-        { status: 400 }
-      );
-    }
-
-    // 👇 Guardar con timestamp sin timezone
-    const result = await db.query(
-      `INSERT INTO attendance_records 
-       (user_id, type, timestamp, latitude, longitude, device_info, notes)
-       VALUES ($1, $2, $3::timestamp, $4, $5, $6, $7) 
-       RETURNING *`,
-      [user.userId, type, localTimestamp, latitude, longitude, deviceInfo, notes]
-    );
-
-    return NextResponse.json({
-      message: 'Registro exitoso',
-      record: result.rows[0],
-    });
-  } catch (error) {
-    console.error('Error en registro de asistencia:', error);
-    return NextResponse.json(
-      { error: 'Error interno del servidor' },
-      { status: 500 }
-    );
+    const date = new Date(timestamp);
+    if (isNaN(date.getTime())) return timestamp;
+    
+    const peruString = date.toLocaleString('en-US', { timeZone: 'America/Lima' });
+    const peruDate = new Date(peruString);
+    
+    const year = peruDate.getFullYear();
+    const month = String(peruDate.getMonth() + 1).padStart(2, '0');
+    const day = String(peruDate.getDate()).padStart(2, '0');
+    const hours = String(peruDate.getHours()).padStart(2, '0');
+    const minutes = String(peruDate.getMinutes()).padStart(2, '0');
+    const seconds = String(peruDate.getSeconds()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+  } catch {
+    return timestamp;
   }
-}
-
-// Función de validación de flujo
-async function validateAttendanceFlow(
-  userId: number, 
-  type: string, 
-  date: string
-): Promise<{ valid: boolean; message: string }> {
-  const records = await db.query(
-    `SELECT * FROM attendance_records 
-     WHERE user_id = $1 AND DATE(timestamp) = $2 
-     ORDER BY timestamp`,
-    [userId, date]
-  );
-
-  const existingTypes = records.rows.map((r: any) => r.type);
-
-  switch (type) {
-    case 'check_in':
-      if (existingTypes.includes('check_in')) {
-        return { valid: false, message: 'Ya registraste tu entrada hoy' };
-      }
-      break;
-
-    case 'lunch_out':
-      if (!existingTypes.includes('check_in')) {
-        return { valid: false, message: 'Debes registrar tu entrada primero' };
-      }
-      if (existingTypes.includes('lunch_out')) {
-        return { valid: false, message: 'Ya registraste tu salida a comer' };
-      }
-      if (existingTypes.includes('check_out')) {
-        return { valid: false, message: 'Ya registraste tu salida del día' };
-      }
-      break;
-
-    case 'lunch_in':
-      if (!existingTypes.includes('lunch_out')) {
-        return { valid: false, message: 'Debes registrar salida a comer primero' };
-      }
-      if (existingTypes.includes('lunch_in')) {
-        return { valid: false, message: 'Ya registraste tu regreso de comer' };
-      }
-      break;
-
-    case 'check_out':
-      if (!existingTypes.includes('check_in')) {
-        return { valid: false, message: 'Debes registrar tu entrada primero' };
-      }
-      if (existingTypes.includes('check_out')) {
-        return { valid: false, message: 'Ya registraste tu salida hoy' };
-      }
-      if (existingTypes.includes('lunch_out') && !existingTypes.includes('lunch_in')) {
-        return { valid: false, message: 'Debes registrar tu regreso de comer primero' };
-      }
-      break;
-
-    default:
-      return { valid: false, message: 'Tipo de registro no válido' };
-  }
-
-  return { valid: true, message: 'OK' };
-}
-
-// 👇 Funciones helper para manejo de hora Perú
-function getPeruToday(): string {
-  const now = new Date();
-  const peruString = now.toLocaleString('en-US', { timeZone: 'America/Lima' });
-  const peruDate = new Date(peruString);
-  const year = peruDate.getFullYear();
-  const month = String(peruDate.getMonth() + 1).padStart(2, '0');
-  const day = String(peruDate.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-function getPeruNowTimestamp(): string {
-  const now = new Date();
-  const peruString = now.toLocaleString('en-US', { timeZone: 'America/Lima' });
-  const peruDate = new Date(peruString);
-  const year = peruDate.getFullYear();
-  const month = String(peruDate.getMonth() + 1).padStart(2, '0');
-  const day = String(peruDate.getDate()).padStart(2, '0');
-  const hours = String(peruDate.getHours()).padStart(2, '0');
-  const minutes = String(peruDate.getMinutes()).padStart(2, '0');
-  const seconds = String(peruDate.getSeconds()).padStart(2, '0');
-  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
-}
-
-function convertToPeruTimestamp(isoTimestamp: string): string {
-  const date = new Date(isoTimestamp);
-  const peruString = date.toLocaleString('en-US', { timeZone: 'America/Lima' });
-  const peruDate = new Date(peruString);
-  const year = peruDate.getFullYear();
-  const month = String(peruDate.getMonth() + 1).padStart(2, '0');
-  const day = String(peruDate.getDate()).padStart(2, '0');
-  const hours = String(peruDate.getHours()).padStart(2, '0');
-  const minutes = String(peruDate.getMinutes()).padStart(2, '0');
-  const seconds = String(peruDate.getSeconds()).padStart(2, '0');
-  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
 }

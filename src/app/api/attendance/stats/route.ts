@@ -2,6 +2,39 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyAuth } from '@/lib/auth';
 
+// Obtener fecha de hoy en hora Perú
+function getPeruToday(): string {
+  const now = new Date();
+  const peruString = now.toLocaleString('en-US', { timeZone: 'America/Lima' });
+  const peruDate = new Date(peruString);
+  const year = peruDate.getFullYear();
+  const month = String(peruDate.getMonth() + 1).padStart(2, '0');
+  const day = String(peruDate.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+// Normalizar timestamp a hora Perú
+function normalizeTimestamp(timestamp: string): string {
+  try {
+    const date = new Date(timestamp);
+    if (isNaN(date.getTime())) return timestamp;
+    
+    const peruString = date.toLocaleString('en-US', { timeZone: 'America/Lima' });
+    const peruDate = new Date(peruString);
+    
+    const year = peruDate.getFullYear();
+    const month = String(peruDate.getMonth() + 1).padStart(2, '0');
+    const day = String(peruDate.getDate()).padStart(2, '0');
+    const hours = String(peruDate.getHours()).padStart(2, '0');
+    const minutes = String(peruDate.getMinutes()).padStart(2, '0');
+    const seconds = String(peruDate.getSeconds()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+  } catch {
+    return timestamp;
+  }
+}
+
 export async function GET(req: NextRequest) {
   try {
     const user = await verifyAuth(req);
@@ -9,16 +42,20 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    const today = new Date().toISOString().split('T')[0];
+    // Usar hora Perú
+    const today = getPeruToday();
     const userId = user.userId;
+
+    console.log('📊 Stats - Hoy Perú:', today);
 
     // Estadísticas del mes actual
     const monthStats = await db.query(
       `SELECT 
         COUNT(DISTINCT DATE(timestamp)) as days_worked,
-        COUNT(CASE WHEN type = 'check_in' AND EXTRACT(HOUR FROM timestamp) > 8 
+        COUNT(CASE WHEN type = 'check_in' AND (
+          EXTRACT(HOUR FROM timestamp) > 8 
           OR (EXTRACT(HOUR FROM timestamp) = 8 AND EXTRACT(MINUTE FROM timestamp) > 15)
-          THEN 1 END) as late_arrivals,
+        ) THEN 1 END) as late_arrivals,
         AVG(CASE WHEN type = 'check_in' 
           THEN EXTRACT(HOUR FROM timestamp) * 60 + EXTRACT(MINUTE FROM timestamp) 
           END) as avg_check_in_minutes,
@@ -40,17 +77,23 @@ export async function GET(req: NextRequest) {
       [userId, today]
     );
 
+    // Normalizar timestamps antes de calcular
+    const normalizedRecords = todayRecords.rows.map((r: any) => ({
+      ...r,
+      timestamp: normalizeTimestamp(r.timestamp),
+    }));
+
     let totalHoursToday = 0;
-    const checkIn = todayRecords.rows.find((r: any) => r.type === 'check_in');
-    const checkOut = todayRecords.rows.find((r: any) => r.type === 'check_out');
+    const checkIn = normalizedRecords.find((r: any) => r.type === 'check_in');
+    const checkOut = normalizedRecords.find((r: any) => r.type === 'check_out');
 
     if (checkIn && checkOut) {
       const diff =
         new Date(checkOut.timestamp).getTime() -
         new Date(checkIn.timestamp).getTime();
 
-      const lunchOut = todayRecords.rows.find((r: any) => r.type === 'lunch_out');
-      const lunchIn = todayRecords.rows.find((r: any) => r.type === 'lunch_in');
+      const lunchOut = normalizedRecords.find((r: any) => r.type === 'lunch_out');
+      const lunchIn = normalizedRecords.find((r: any) => r.type === 'lunch_in');
 
       let lunchTime = 0;
       if (lunchOut && lunchIn) {
@@ -76,7 +119,7 @@ export async function GET(req: NextRequest) {
       daysWorkedThisMonth: parseInt(row.days_worked) || 0,
       averageCheckIn: formatMinutes(row.avg_check_in_minutes),
       averageCheckOut: formatMinutes(row.avg_check_out_minutes),
-      totalHoursThisMonth: 0, // Se puede calcular si es necesario
+      totalHoursThisMonth: 0,
       lateArrivals: parseInt(row.late_arrivals) || 0,
       lunchTimeAverage: '--:--',
       totalHoursToday: Math.round(totalHoursToday * 100) / 100,

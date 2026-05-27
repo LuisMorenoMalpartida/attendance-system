@@ -10,76 +10,98 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
-    const year = parseInt(searchParams.get('year') || '', 10);
-    const month = parseInt(searchParams.get('month') || '', 10);
-
-    if (!year || !month || month < 1 || month > 12) {
-      return NextResponse.json(
-        { error: 'Parámetros de fecha inválidos' },
-        { status: 400 }
-      );
-    }
-
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 1);
+    const year = searchParams.get('year') || new Date().getFullYear().toString();
+    const month = searchParams.get('month') || (new Date().getMonth() + 1).toString();
 
     const result = await db.query(
-      `SELECT * FROM attendance_records
-       WHERE user_id = $1
-       AND timestamp >= $2
-       AND timestamp < $3
-       ORDER BY timestamp ASC`,
-      [user.userId, startDate.toISOString(), endDate.toISOString()]
+      `SELECT 
+        id, type, timestamp, notes, is_manual, 
+        latitude, longitude, DATE(timestamp) as date
+       FROM attendance_records 
+       WHERE user_id = $1 
+       AND EXTRACT(YEAR FROM timestamp) = $2 
+       AND EXTRACT(MONTH FROM timestamp) = $3 
+       ORDER BY DATE(timestamp) DESC, timestamp ASC`,
+      [user.userId, year, month]
     );
 
-    const records = result.rows;
-    const groupedRecords: Array<{
-      date: string;
-      records: Array<{ id: number; type: string; timestamp: string; notes: string | null }>;
-      hoursWorked: number | null;
-    }> = [];
+    // 👇 Normalizar timestamps: quitar la Z y convertir a hora local
+    const normalizedRows = result.rows.map((row: any) => ({
+      ...row,
+      timestamp: normalizeTimestamp(row.timestamp),
+    }));
 
-    const mapByDate = new Map<string, typeof records>();
+    // Agrupar por fecha
+    const recordsByDate: Record<string, any> = {};
 
-    records.forEach((record: any) => {
-      const timestamp = new Date(record.timestamp);
-      const dateKey = timestamp.toISOString().slice(0, 10);
-      const dayRecords = mapByDate.get(dateKey) || [];
-      dayRecords.push({
-        id: record.id,
-        type: record.type,
-        timestamp: record.timestamp,
-        notes: record.notes,
-      });
-      mapByDate.set(dateKey, dayRecords);
+    normalizedRows.forEach((record: any) => {
+      const date = record.date;
+      if (!recordsByDate[date]) {
+        recordsByDate[date] = {
+          date,
+          records: [],
+          hoursWorked: null,
+        };
+      }
+      recordsByDate[date].records.push(record);
     });
 
-    for (const [date, dayRecords] of mapByDate.entries()) {
-      const checkIn = dayRecords.find((r) => r.type === 'check_in');
-      const checkOut = [...dayRecords].reverse().find((r) => r.type === 'check_out');
+    // Calcular horas trabajadas por día
+    const records = Object.values(recordsByDate).map((day: any) => {
+      const checkIn = day.records.find((r: any) => r.type === 'check_in');
+      const checkOut = day.records.find((r: any) => r.type === 'check_out');
 
-      const hoursWorked =
-        checkIn && checkOut
-          ?
-            (new Date(checkOut.timestamp).getTime() - new Date(checkIn.timestamp).getTime()) /
-            3600000
-          : null;
+      if (checkIn && checkOut) {
+        const diff =
+          new Date(checkOut.timestamp).getTime() -
+          new Date(checkIn.timestamp).getTime();
 
-      groupedRecords.push({
-        date,
-        records: dayRecords,
-        hoursWorked: hoursWorked !== null ? Number(hoursWorked.toFixed(2)) : null,
-      });
-    }
+        const lunchOut = day.records.find((r: any) => r.type === 'lunch_out');
+        const lunchIn = day.records.find((r: any) => r.type === 'lunch_in');
 
-    groupedRecords.sort((a, b) => a.date.localeCompare(b.date));
+        let lunchTime = 0;
+        if (lunchOut && lunchIn) {
+          lunchTime =
+            new Date(lunchIn.timestamp).getTime() -
+            new Date(lunchOut.timestamp).getTime();
+        }
 
-    return NextResponse.json({ records: groupedRecords });
+        day.hoursWorked = (diff - lunchTime) / (1000 * 60 * 60);
+      }
+
+      return day;
+    });
+
+    return NextResponse.json({ records });
   } catch (error) {
-    console.error('Error al obtener historial de asistencia:', error);
+    console.error('Error al obtener historial:', error);
     return NextResponse.json(
       { error: 'Error interno del servidor' },
       { status: 500 }
     );
+  }
+}
+
+// 👇 Función para normalizar timestamp (quitar UTC y dejar hora local)
+function normalizeTimestamp(timestamp: string): string {
+  try {
+    const date = new Date(timestamp);
+    // Si la fecha es inválida, devolver el original
+    if (isNaN(date.getTime())) return timestamp;
+    
+    // Convertir a hora Perú y devolver sin timezone
+    const peruString = date.toLocaleString('en-US', { timeZone: 'America/Lima' });
+    const peruDate = new Date(peruString);
+    
+    const year = peruDate.getFullYear();
+    const month = String(peruDate.getMonth() + 1).padStart(2, '0');
+    const day = String(peruDate.getDate()).padStart(2, '0');
+    const hours = String(peruDate.getHours()).padStart(2, '0');
+    const minutes = String(peruDate.getMinutes()).padStart(2, '0');
+    const seconds = String(peruDate.getSeconds()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+  } catch {
+    return timestamp;
   }
 }
