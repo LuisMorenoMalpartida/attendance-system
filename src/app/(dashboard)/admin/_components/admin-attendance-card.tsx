@@ -1,17 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react'; 
-import { 
-  LogIn, 
-  LogOut, 
-  Coffee, 
-  MapPin, 
+import { useState, useEffect } from 'react';
+import {
+  LogIn,
+  LogOut,
+  Coffee,
+  MapPin,
   AlertCircle,
   CheckCircle2,
   Clock,
   Shield
 } from 'lucide-react';
 import { useGSAP } from '@gsap/react';
+import { getNowISO } from '@/lib/date-utils';
 import gsap from 'gsap';
 
 type AttendanceType = 'check_in' | 'lunch_out' | 'lunch_in' | 'check_out';
@@ -49,12 +50,12 @@ export function AdminAttendanceCard() {
           maximumAge: 0 // 👈 No usar caché, siempre ubicación fresca
         });
       });
-      
+
       const coords = {
         latitude: position.coords.latitude,
         longitude: position.coords.longitude
       };
-      
+
       console.log('✅ Ubicación GPS obtenida:', coords);
       setLocation(coords);
       return coords;
@@ -93,7 +94,7 @@ export function AdminAttendanceCard() {
       setError(null);
       setSuccess(null);
 
-      // 👇 Obtener ubicación FRESCA antes de cada registro
+      // Obtener ubicación FRESCA antes de cada registro
       console.log('📍 Solicitando ubicación GPS...');
       const currentLocation = await getCurrentLocation();
 
@@ -111,6 +112,7 @@ export function AdminAttendanceCard() {
           latitude: currentLocation?.latitude ?? null,
           longitude: currentLocation?.longitude ?? null,
           deviceInfo: navigator.userAgent,
+          timestamp: getNowISO(), // Hora local del dispositivo
         }),
       });
 
@@ -123,7 +125,7 @@ export function AdminAttendanceCard() {
 
       setSuccess(`¡${getTypeLabel(type)} registrado exitosamente!`);
       setLastRecord({ type, timestamp: new Date().toISOString() });
-      
+
       gsap.fromTo('.success-message',
         { scale: 0.8, opacity: 0 },
         { scale: 1, opacity: 1, duration: 0.3, ease: 'back.out(1.7)' }
@@ -173,7 +175,7 @@ export function AdminAttendanceCard() {
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
       <div className="relative h-2 bg-gradient-to-r from-amber-600 via-orange-600 to-red-600" />
-      
+
       <div className="p-6">
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -189,7 +191,7 @@ export function AdminAttendanceCard() {
               Horario: 08:00 - 17:45
             </p>
           </div>
-          
+
           <div className="flex items-center gap-2">
             {location ? (
               <div className="flex items-center gap-1 px-3 py-1 rounded-full bg-green-50 dark:bg-green-950/50 text-green-700 dark:text-green-400 text-xs font-medium">

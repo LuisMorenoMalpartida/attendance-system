@@ -765,7 +765,7 @@ export function AttendanceCalendarView() {
                                                     <p className="text-sm font-medium">{getTypeLabel(record.type)}</p>
                                                     {record.is_manual && <Badge variant="outline" className="text-xs">Manual</Badge>}
                                                 </div>
-                                                <p className="text-xs text-slate-500">{new Date(record.timestamp).toLocaleTimeString('es-ES')}</p>
+                                                <p className="text-xs text-slate-500">{formatTime(record.timestamp)}</p>
                                             </div>
                                             
                                             {/* Botón ubicación */}
