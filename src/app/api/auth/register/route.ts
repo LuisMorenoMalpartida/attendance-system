@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { db } from '@/lib/db';
-import { writeFile } from 'fs/promises';
-import { join } from 'path';
+import { uploadImage } from '@/lib/upload';
 
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
-    
+
     const name = formData.get('name') as string;
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
@@ -19,6 +18,15 @@ export async function POST(req: NextRequest) {
     if (!name || !email || !password || !companyName || !role) {
       return NextResponse.json(
         { error: 'Todos los campos son requeridos' },
+        { status: 400 }
+      );
+    }
+
+    // Validar email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return NextResponse.json(
+        { error: 'El formato del email no es válido' },
         { status: 400 }
       );
     }
@@ -54,16 +62,22 @@ export async function POST(req: NextRequest) {
       companyId = companyResult.rows[0].id;
     }
 
-    // Procesar foto de perfil
+    // Procesar foto de perfil con Vercel Blob
     let photoUrl: string | null = null;
-    if (profilePhoto) {
-      const bytes = await profilePhoto.arrayBuffer();
-      const buffer = Buffer.from(bytes);
-      
-      const filename = `profile-${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
-      const uploadDir = join(process.cwd(), 'public', 'uploads');
-      await writeFile(join(uploadDir, filename), buffer);
-      photoUrl = `/uploads/${filename}`;
+    if (profilePhoto && profilePhoto.size > 0) {
+      try {
+        const result = await uploadImage(profilePhoto, name, {
+          folder: 'profiles',
+          maxSizeMB: 5,
+        });
+        photoUrl = result.url;
+      } catch (error: any) {
+        console.error('Error al subir foto:', error);
+        return NextResponse.json(
+          { error: `Error al subir foto: ${error.message}` },
+          { status: 400 }
+        );
+      }
     }
 
     // Hashear contraseña
@@ -79,7 +93,7 @@ export async function POST(req: NextRequest) {
 
     // Crear horario laboral por defecto para usuarios
     if (role === 'user') {
-      for (let day = 0; day <= 4; day++) { // Lunes a Viernes
+      for (let day = 0; day <= 4; day++) {
         await db.query(
           `INSERT INTO work_schedules (user_id, day_of_week, start_time, end_time, tolerance_minutes)
            VALUES ($1, $2, '08:00', '17:45', 15)`,
