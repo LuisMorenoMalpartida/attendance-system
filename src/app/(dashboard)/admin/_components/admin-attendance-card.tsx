@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react'; 
 import { 
   LogIn, 
   LogOut, 
@@ -22,23 +22,48 @@ interface LastRecord {
 }
 
 export function AdminAttendanceCard() {
-  const [location, setLocation] = useState<GeolocationPosition | null>(null);
+  const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [lastRecord, setLastRecord] = useState<LastRecord | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => setLocation(position),
-        (error) => console.error('Error de ubicación:', error),
-        { enableHighAccuracy: true }
-      );
-    }
-
+    // Intentar obtener ubicación al cargar (para mostrar el indicador)
+    getCurrentLocation();
     fetchLastRecord();
   }, []);
+
+  // 👇 Función para obtener ubicación actual
+  const getCurrentLocation = async (): Promise<{ latitude: number; longitude: number } | null> => {
+    if (!navigator.geolocation) {
+      console.warn('⚠️ Geolocalización no soportada');
+      return null;
+    }
+
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0 // 👈 No usar caché, siempre ubicación fresca
+        });
+      });
+      
+      const coords = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude
+      };
+      
+      console.log('✅ Ubicación GPS obtenida:', coords);
+      setLocation(coords);
+      return coords;
+    } catch (geoError: any) {
+      console.warn('⚠️ Error GPS:', geoError.message);
+      setLocation(null);
+      return null;
+    }
+  };
 
   const fetchLastRecord = async () => {
     try {
@@ -68,18 +93,29 @@ export function AdminAttendanceCard() {
       setError(null);
       setSuccess(null);
 
+      // 👇 Obtener ubicación FRESCA antes de cada registro
+      console.log('📍 Solicitando ubicación GPS...');
+      const currentLocation = await getCurrentLocation();
+
+      console.log('📤 Enviando registro:', {
+        type,
+        latitude: currentLocation?.latitude,
+        longitude: currentLocation?.longitude,
+      });
+
       const response = await fetch('/api/attendance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type,
-          latitude: location?.coords.latitude,
-          longitude: location?.coords.longitude,
+          latitude: currentLocation?.latitude ?? null,
+          longitude: currentLocation?.longitude ?? null,
           deviceInfo: navigator.userAgent,
         }),
       });
 
       const data = await response.json();
+      console.log('📥 Respuesta del servidor:', data);
 
       if (!response.ok) {
         throw new Error(data.error || 'Error al registrar');
@@ -94,15 +130,12 @@ export function AdminAttendanceCard() {
       );
 
       setTimeout(() => setSuccess(null), 3000);
-
     } catch (err: any) {
       setError(err.message);
-      
       gsap.fromTo('.error-message',
         { x: -10, opacity: 0 },
         { x: 0, opacity: 1, duration: 0.3, ease: 'power2.out' }
       );
-
       setTimeout(() => setError(null), 5000);
     } finally {
       setLoading(null);
@@ -121,14 +154,12 @@ export function AdminAttendanceCard() {
 
   const getNextAction = (): AttendanceType | null => {
     if (!lastRecord) return 'check_in';
-    
     const flow: Record<AttendanceType, AttendanceType> = {
       check_in: 'lunch_out',
       lunch_out: 'lunch_in',
       lunch_in: 'check_out',
       check_out: 'check_in',
     };
-    
     return flow[lastRecord.type] || 'check_in';
   };
 
@@ -163,12 +194,12 @@ export function AdminAttendanceCard() {
             {location ? (
               <div className="flex items-center gap-1 px-3 py-1 rounded-full bg-green-50 dark:bg-green-950/50 text-green-700 dark:text-green-400 text-xs font-medium">
                 <MapPin className="w-3 h-3" />
-                <span>Ubicación OK</span>
+                <span>GPS: {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}</span>
               </div>
             ) : (
               <div className="flex items-center gap-1 px-3 py-1 rounded-full bg-yellow-50 dark:bg-yellow-950/50 text-yellow-700 dark:text-yellow-400 text-xs font-medium">
                 <AlertCircle className="w-3 h-3" />
-                <span>Sin ubicación</span>
+                <span>GPS no detectado</span>
               </div>
             )}
           </div>
@@ -204,70 +235,34 @@ export function AdminAttendanceCard() {
         )}
 
         <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => handleAttendanceRecord('check_in')}
-            disabled={isButtonDisabled('check_in')}
-            className={`attendance-action relative overflow-hidden p-4 rounded-xl font-medium text-white transition-all duration-300 bg-gradient-to-r from-blue-500 to-blue-600 ${
-              isButtonDisabled('check_in') ? 'opacity-50 cursor-not-allowed' : 'hover:from-blue-600 hover:to-blue-700'
-            }`}
-          >
+          <button onClick={() => handleAttendanceRecord('check_in')} disabled={isButtonDisabled('check_in')}
+            className={`attendance-action relative overflow-hidden p-4 rounded-xl font-medium text-white transition-all duration-300 bg-gradient-to-r from-blue-500 to-blue-600 ${isButtonDisabled('check_in') ? 'opacity-50 cursor-not-allowed' : 'hover:from-blue-600 hover:to-blue-700'}`}>
             <div className="relative z-10 flex items-center justify-center gap-2">
-              {loading === 'check_in' ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <LogIn className="w-5 h-5" />
-              )}
+              {loading === 'check_in' ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <LogIn className="w-5 h-5" />}
               <span>Entrada</span>
             </div>
           </button>
 
-          <button
-            onClick={() => handleAttendanceRecord('lunch_out')}
-            disabled={isButtonDisabled('lunch_out')}
-            className={`attendance-action relative overflow-hidden p-4 rounded-xl font-medium text-white transition-all duration-300 bg-gradient-to-r from-orange-500 to-orange-600 ${
-              isButtonDisabled('lunch_out') ? 'opacity-50 cursor-not-allowed' : 'hover:from-orange-600 hover:to-orange-700'
-            }`}
-          >
+          <button onClick={() => handleAttendanceRecord('lunch_out')} disabled={isButtonDisabled('lunch_out')}
+            className={`attendance-action relative overflow-hidden p-4 rounded-xl font-medium text-white transition-all duration-300 bg-gradient-to-r from-orange-500 to-orange-600 ${isButtonDisabled('lunch_out') ? 'opacity-50 cursor-not-allowed' : 'hover:from-orange-600 hover:to-orange-700'}`}>
             <div className="relative z-10 flex items-center justify-center gap-2">
-              {loading === 'lunch_out' ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <Coffee className="w-5 h-5" />
-              )}
+              {loading === 'lunch_out' ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Coffee className="w-5 h-5" />}
               <span>Salida Comida</span>
             </div>
           </button>
 
-          <button
-            onClick={() => handleAttendanceRecord('lunch_in')}
-            disabled={isButtonDisabled('lunch_in')}
-            className={`attendance-action relative overflow-hidden p-4 rounded-xl font-medium text-white transition-all duration-300 bg-gradient-to-r from-green-500 to-green-600 ${
-              isButtonDisabled('lunch_in') ? 'opacity-50 cursor-not-allowed' : 'hover:from-green-600 hover:to-green-700'
-            }`}
-          >
+          <button onClick={() => handleAttendanceRecord('lunch_in')} disabled={isButtonDisabled('lunch_in')}
+            className={`attendance-action relative overflow-hidden p-4 rounded-xl font-medium text-white transition-all duration-300 bg-gradient-to-r from-green-500 to-green-600 ${isButtonDisabled('lunch_in') ? 'opacity-50 cursor-not-allowed' : 'hover:from-green-600 hover:to-green-700'}`}>
             <div className="relative z-10 flex items-center justify-center gap-2">
-              {loading === 'lunch_in' ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <Coffee className="w-5 h-5" />
-              )}
+              {loading === 'lunch_in' ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Coffee className="w-5 h-5" />}
               <span>Regreso Comida</span>
             </div>
           </button>
 
-          <button
-            onClick={() => handleAttendanceRecord('check_out')}
-            disabled={isButtonDisabled('check_out')}
-            className={`attendance-action relative overflow-hidden p-4 rounded-xl font-medium text-white transition-all duration-300 bg-gradient-to-r from-red-500 to-red-600 ${
-              isButtonDisabled('check_out') ? 'opacity-50 cursor-not-allowed' : 'hover:from-red-600 hover:to-red-700'
-            }`}
-          >
+          <button onClick={() => handleAttendanceRecord('check_out')} disabled={isButtonDisabled('check_out')}
+            className={`attendance-action relative overflow-hidden p-4 rounded-xl font-medium text-white transition-all duration-300 bg-gradient-to-r from-red-500 to-red-600 ${isButtonDisabled('check_out') ? 'opacity-50 cursor-not-allowed' : 'hover:from-red-600 hover:to-red-700'}`}>
             <div className="relative z-10 flex items-center justify-center gap-2">
-              {loading === 'check_out' ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <LogOut className="w-5 h-5" />
-              )}
+              {loading === 'check_out' ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <LogOut className="w-5 h-5" />}
               <span>Salida</span>
             </div>
           </button>
