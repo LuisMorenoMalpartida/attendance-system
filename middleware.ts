@@ -6,7 +6,14 @@ const secretKey = new TextEncoder().encode(
 );
 
 // Rutas públicas que NO requieren autenticación
-const publicPaths = ['/login', '/api/auth/login', '/api/auth/register'];
+const publicPaths = [
+  '/login',
+  '/auth/login',
+  '/register',          
+  '/auth/register',     
+  '/api/auth/login',
+  '/api/auth/register', 
+];
 
 // Rutas de assets públicos (siempre permitidas)
 const assetPaths = ['/_next', '/favicon.ico', '/fonts', '/images', '/uploads'];
@@ -32,7 +39,7 @@ export async function middleware(request: NextRequest) {
   // Si está en una ruta pública (login/register)
   if (publicPaths.some(path => pathname.startsWith(path))) {
     // Si ya tiene token válido, redirigir a su dashboard
-    if (token) {
+    if (token && !pathname.includes('register')) {
       const payload = await verifyToken(token);
       if (payload) {
         const role = payload.role as string;
@@ -42,7 +49,7 @@ export async function middleware(request: NextRequest) {
         );
         const response = NextResponse.redirect(dashboardUrl);
         
-        // 👇 Headers para prevenir caché y botón "atrás"
+        // Headers para prevenir caché y botón "atrás"
         response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
         response.headers.set('Pragma', 'no-cache');
         response.headers.set('Expires', '0');
