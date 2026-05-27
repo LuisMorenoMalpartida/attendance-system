@@ -205,7 +205,7 @@ export function AdminAttendanceHistory({ isOwnAttendance }: AdminAttendanceHisto
     return (
         <>
             <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-                <div className="relative h-1 bg-gradient-to-r from-purple-600 via-pink-600 to-red-600" />
+                <div className="relative h-1 bg-linear-to-r from-purple-600 via-pink-600 to-red-600" />
 
                 <div className="p-6">
                     {/* Header */}
@@ -250,7 +250,7 @@ export function AdminAttendanceHistory({ isOwnAttendance }: AdminAttendanceHisto
                         <div className="flex flex-col sm:flex-row gap-3 mb-6">
                             <Button
                                 onClick={() => setShowCreateModal(true)}
-                                className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700"
+                                className="bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700"
                             >
                                 <Plus className="w-4 h-4 mr-2" />
                                 Crear Registro Manual
@@ -274,7 +274,7 @@ export function AdminAttendanceHistory({ isOwnAttendance }: AdminAttendanceHisto
                                     }
                                 }}
                             >
-                                <SelectTrigger className="w-[160px]">
+                                <SelectTrigger className="w-40">
                                     <Filter className="w-4 h-4 mr-2" />
                                     <SelectValue placeholder="Filtrar tipo" />
                                 </SelectTrigger>
@@ -353,7 +353,7 @@ export function AdminAttendanceHistory({ isOwnAttendance }: AdminAttendanceHisto
                                                 </Badge>
 
                                                 {!isOwnAttendance && (
-                                                    <span className="text-xs text-slate-500 dark:text-slate-400 min-w-[100px]">
+                                                    <span className="text-xs text-slate-500 dark:text-slate-400 min-w-25">
                                                         <User className="w-3 h-3 inline mr-1" />
                                                         {record.user_name}
                                                     </span>

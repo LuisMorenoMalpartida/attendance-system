@@ -98,7 +98,7 @@ export function UserHeader() {
         <div className="flex items-center justify-between h-16">
           {/* Logo y título */}
           <div className="flex items-center gap-3 header-element">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center shadow-lg">
+            <div className="w-10 h-10 rounded-xl bg-linear-to-br from-blue-600 to-purple-600 flex items-center justify-center shadow-lg">
               <Clock className="w-5 h-5 text-white" />
             </div>
             <div>
@@ -141,7 +141,7 @@ export function UserHeader() {
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
                 className="flex items-center gap-2 p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               >
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-linear-to-br from-blue-500 to-purple-500 flex items-center justify-center">
                   <User className="w-4 h-4 text-white" />
                 </div>
                 <span className="hidden md:block text-sm font-medium text-slate-700 dark:text-slate-300">

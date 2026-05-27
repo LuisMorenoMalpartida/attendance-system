@@ -17,8 +17,8 @@ import gsap from 'gsap';
 interface LocationViewerProps {
   isOpen: boolean;
   onClose: () => void;
-  latitude: number;
-  longitude: number;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
   userName: string;
   timestamp: string;
   type: string;
@@ -42,12 +42,16 @@ export function LocationViewer({
     }
   }, [isOpen]);
 
+  const latNum = typeof latitude === 'number' ? latitude : Number(latitude);
+  const lonNum = typeof longitude === 'number' ? longitude : Number(longitude);
+  const hasCoords = Number.isFinite(latNum) && Number.isFinite(lonNum);
+
   const getGoogleMapsUrl = () => {
-    return `https://www.google.com/maps?q=${latitude},${longitude}`;
+    return `https://www.google.com/maps?q=${latNum},${lonNum}`;
   };
 
   const getOpenStreetMapUrl = () => {
-    return `https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=17/${latitude}/${longitude}`;
+    return `https://www.openstreetmap.org/?mlat=${latNum}&mlon=${lonNum}#map=17/${latNum}/${lonNum}`;
   };
 
   const getTypeLabel = (type: string): string => {
@@ -76,14 +80,20 @@ export function LocationViewer({
         <div className="space-y-4 mt-4">
           {/* Mapa embebido (OpenStreetMap) */}
           <div className="relative w-full h-64 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700">
-            <iframe
-              src={`https://www.openstreetmap.org/export/embed.html?bbox=${longitude - 0.01},${latitude - 0.01},${longitude + 0.01},${latitude + 0.01}&layer=mapnik&marker=${latitude},${longitude}`}
-              width="100%"
-              height="100%"
-              style={{ border: 0 }}
-              loading="lazy"
-              title="Mapa de ubicación"
-            />
+            {hasCoords ? (
+              <iframe
+                src={`https://www.openstreetmap.org/export/embed.html?bbox=${lonNum - 0.01},${latNum - 0.01},${lonNum + 0.01},${latNum + 0.01}&layer=mapnik&marker=${latNum},${lonNum}`}
+                width="100%"
+                height="100%"
+                style={{ border: 0 }}
+                loading="lazy"
+                title="Mapa de ubicación"
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full text-sm text-slate-500">
+                Coordenadas no disponibles
+              </div>
+            )}
           </div>
 
           {/* Coordenadas */}
@@ -96,14 +106,14 @@ export function LocationViewer({
               <div className="p-3 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
                 <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Latitud</p>
                 <p className="text-lg font-mono font-bold text-slate-900 dark:text-white">
-                  {latitude.toFixed(6)}
+                  {hasCoords ? latNum.toFixed(6) : '--'}
                 </p>
               </div>
               
               <div className="p-3 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
                 <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Longitud</p>
                 <p className="text-lg font-mono font-bold text-slate-900 dark:text-white">
-                  {longitude.toFixed(6)}
+                  {hasCoords ? lonNum.toFixed(6) : '--'}
                 </p>
               </div>
             </div>

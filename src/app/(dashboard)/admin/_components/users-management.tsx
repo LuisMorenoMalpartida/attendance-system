@@ -114,7 +114,7 @@ export function UsersManagement() {
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-      <div className="relative h-1 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600" />
+      <div className="relative h-1 bg-linear-to-r from-emerald-600 via-teal-600 to-cyan-600" />
 
       <div className="p-6">
         {/* Header */}
@@ -128,7 +128,7 @@ export function UsersManagement() {
             </p>
           </div>
 
-          <Button className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700">
+          <Button className="bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700">
             <UserPlus className="w-4 h-4 mr-2" />
             Nuevo Usuario
           </Button>
@@ -153,7 +153,7 @@ export function UsersManagement() {
               setRoleFilter(value);
             }}
           >
-            <SelectTrigger className="w-[140px]">
+            <SelectTrigger className="w-35">
               <SelectValue placeholder="Rol" />
             </SelectTrigger>
             <SelectContent>
@@ -170,7 +170,7 @@ export function UsersManagement() {
               setStatusFilter(value);
             }}
           >
-            <SelectTrigger className="w-[140px]">
+            <SelectTrigger className="w-35">
               <SelectValue placeholder="Estado" />
             </SelectTrigger>
             <SelectContent>
@@ -199,7 +199,7 @@ export function UsersManagement() {
               >
                 <div className="flex items-center gap-3">
                   {/* Avatar */}
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-400 to-slate-600 flex items-center justify-center flex-shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-linear-to-br from-slate-400 to-slate-600 flex items-center justify-center shrink-0">
                     {user.profile_photo ? (
                       <img src={user.profile_photo} alt={user.name} className="w-full h-full rounded-full object-cover" />
                     ) : (

@@ -17,16 +17,34 @@ export function UserAvatar({ userId, src, alt, size = 40, className = '' }: User
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    if (src) {
-      // Usar la API proxy para obtener la imagen
+    if (!src) {
+      setImageSrc(null);
+      return;
+    }
+
+    // Si `src` ya es una URL completa, úsala directamente
+    try {
+      const isUrl = typeof src === 'string' && /^(https?:)?\/\//.test(src);
+      if (isUrl) {
+        setImageSrc(src as string);
+        return;
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    // Si no es URL, usar el endpoint que redirige a la URL firmada
+    if (userId && src) {
       setImageSrc(`/api/images/profile/${userId}`);
+    } else {
+      setImageSrc(null);
     }
   }, [src, userId]);
 
-  if (!src || error) {
+  if (!imageSrc || error) {
     return (
       <div 
-        className={`rounded-full bg-gradient-to-br from-slate-400 to-slate-600 flex items-center justify-center ${className}`}
+        className={`rounded-full bg-linear-to-br from-slate-400 to-slate-600 flex items-center justify-center ${className}`}
         style={{ width: size, height: size }}
       >
         <User className="text-white" style={{ width: size * 0.5, height: size * 0.5 }} />

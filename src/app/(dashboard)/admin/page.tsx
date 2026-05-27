@@ -27,7 +27,7 @@ export default function AdminDashboardPage() {
           <TabsList className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
             <TabsTrigger 
               value="my-attendance"
-              className="flex items-center justify-center gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-purple-600 data-[state=active]:text-white rounded-lg py-2.5"
+              className="flex items-center justify-center gap-2 data-[state=active]:bg-linear-to-r data-[state=active]:from-blue-600 data-[state=active]:to-purple-600 data-[state=active]:text-white rounded-lg py-2.5"
             >
               <Clock className="w-4 h-4" />
               <span className="hidden sm:inline">Mi Asistencia</span>
@@ -35,7 +35,7 @@ export default function AdminDashboardPage() {
             
             <TabsTrigger 
               value="users"
-              className="flex items-center justify-center gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-emerald-600 data-[state=active]:to-teal-600 data-[state=active]:text-white rounded-lg py-2.5"
+              className="flex items-center justify-center gap-2 data-[state=active]:bg-linear-to-r data-[state=active]:from-emerald-600 data-[state=active]:to-teal-600 data-[state=active]:text-white rounded-lg py-2.5"
             >
               <Users className="w-4 h-4" />
               <span className="hidden sm:inline">Usuarios</span>
@@ -43,7 +43,7 @@ export default function AdminDashboardPage() {
             
             <TabsTrigger 
               value="all-attendance"
-              className="flex items-center justify-center gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-pink-600 data-[state=active]:text-white rounded-lg py-2.5"
+              className="flex items-center justify-center gap-2 data-[state=active]:bg-linear-to-r data-[state=active]:from-purple-600 data-[state=active]:to-pink-600 data-[state=active]:text-white rounded-lg py-2.5"
             >
               <CalendarDays className="w-4 h-4" />
               <span className="hidden sm:inline">Registros</span>
@@ -51,7 +51,7 @@ export default function AdminDashboardPage() {
             
             <TabsTrigger 
               value="settings"
-              className="flex items-center justify-center gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-600 data-[state=active]:to-red-600 data-[state=active]:text-white rounded-lg py-2.5"
+              className="flex items-center justify-center gap-2 data-[state=active]:bg-linear-to-r data-[state=active]:from-orange-600 data-[state=active]:to-red-600 data-[state=active]:text-white rounded-lg py-2.5"
             >
               <Settings className="w-4 h-4" />
               <span className="hidden sm:inline">Ajustes</span>
@@ -92,7 +92,7 @@ export default function AdminDashboardPage() {
           <TabsContent value="settings" className="mt-6">
             <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-8">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-linear-to-br from-orange-500 to-red-500 flex items-center justify-center">
                   <Settings className="w-5 h-5 text-white" />
                 </div>
                 <div>

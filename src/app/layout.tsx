@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { Toaster } from '@/components/ui/sonner';
+import AuthWrapper from '@/components/shared/AuthWrapper';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -19,7 +20,7 @@ export default function RootLayout({
     <html lang="es">
       <body className={inter.className}>
         <main className="min-h-screen bg-background">
-          {children}
+          <AuthWrapper>{children}</AuthWrapper>
         </main>
         <Toaster />
       </body>

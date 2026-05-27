@@ -11,6 +11,7 @@ import {
   Settings,
   Users,
 } from 'lucide-react';
+import { UserAvatar } from '@/components/shared/use-avatar';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 
@@ -21,6 +22,8 @@ export function AdminHeader() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notifications, setNotifications] = useState(3);
   const [userName, setUserName] = useState('Administrador');
+  const [userId, setUserId] = useState<number | null>(null);
+  const [avatarSrc, setAvatarSrc] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -58,6 +61,8 @@ export function AdminHeader() {
       if (response.ok) {
         const data = await response.json();
         setUserName(data.name || 'Administrador');
+        setUserId(data.id || null);
+        setAvatarSrc(data.profile_photo || null);
       }
     } catch (error) {
       console.error('Error al obtener info:', error);
@@ -95,7 +100,7 @@ export function AdminHeader() {
         <div className="flex items-center justify-between h-16">
           {/* Logo y título */}
           <div className="flex items-center gap-3 header-element">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-600 to-red-600 flex items-center justify-center shadow-lg">
+            <div className="w-10 h-10 rounded-xl bg-linear-to-br from-amber-600 to-red-600 flex items-center justify-center shadow-lg">
               <Shield className="w-5 h-5 text-white" />
             </div>
             <div>
@@ -142,8 +147,8 @@ export function AdminHeader() {
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
                 className="flex items-center gap-2 p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               >
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-500 to-red-500 flex items-center justify-center">
-                  <Shield className="w-4 h-4 text-white" />
+                <div className="w-8 h-8">
+                  <UserAvatar userId={userId || 0} src={avatarSrc} alt={userName} size={32} />
                 </div>
                 <span className="hidden md:block text-sm font-medium text-slate-700 dark:text-slate-300">
                   {userName}

@@ -35,8 +35,8 @@ export async function GET(
 
     console.log(' URL temporal generada:', downloadUrl);
     
-    // Devolver la URL firmada como JSON
-    return NextResponse.json({ url: downloadUrl });
+    // Redirigir directamente a la URL temporal para que `next/image` pueda cargarla
+    return NextResponse.redirect(downloadUrl);
     
   } catch (error: any) {
     console.error(' Error al obtener foto:', error);

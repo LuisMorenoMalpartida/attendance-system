@@ -113,7 +113,7 @@ export function AttendanceHistory() {
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-      <div className="relative h-1 bg-gradient-to-r from-purple-600 via-pink-600 to-red-600" />
+      <div className="relative h-1 bg-linear-to-r from-purple-600 via-pink-600 to-red-600" />
       
       <div className="p-6">
         {/* Header con navegación de mes */}
@@ -204,7 +204,7 @@ export function AttendanceHistory() {
                       className="flex items-center gap-3 text-sm"
                     >
                       {getTypeIcon(record.type)}
-                      <span className="text-slate-600 dark:text-slate-400 min-w-[100px]">
+                      <span className="text-slate-600 dark:text-slate-400 min-w-25">
                         {getTypeLabel(record.type)}
                       </span>
                       <span className="font-mono text-slate-900 dark:text-white">
