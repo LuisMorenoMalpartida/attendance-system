@@ -14,6 +14,7 @@ import {
     Coffee,
     LogIn,
     LogOut,
+    FileSpreadsheet,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,8 +25,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { useGSAP } from '@gsap/react';
-import gsap from 'gsap';
+import ExcelJS from 'exceljs';
 
 interface CalendarDay {
     date: string;
@@ -54,6 +54,7 @@ export function AttendanceCalendarView() {
     const [selectedDay, setSelectedDay] = useState<CalendarDay | null>(null);
     const [showDayDetail, setShowDayDetail] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [exporting, setExporting] = useState(false);
 
     useEffect(() => {
         fetchUsers();
@@ -86,8 +87,6 @@ export function AttendanceCalendarView() {
             const year = currentDate.getFullYear();
             const month = currentDate.getMonth() + 1;
 
-            console.log(`🔍 Cargando datos para usuario ${selectedUser} - ${month}/${year}`);
-
             const response = await fetch(
                 `/api/admin/users/${selectedUser}/attendance?year=${year}&month=${month}`
             );
@@ -98,10 +97,8 @@ export function AttendanceCalendarView() {
             }
 
             const data = await response.json();
-            console.log(`✅ Datos recibidos:`, data);
             
             if (data.records) {
-                // Normalizar fechas: convertir "2026-05-27T05:00:00.000Z" a "2026-05-27"
                 const normalizedRecords = data.records.map((day: any) => ({
                     ...day,
                     date: day.date ? day.date.split('T')[0] : day.date,
@@ -109,14 +106,13 @@ export function AttendanceCalendarView() {
                         ...record,
                     }))
                 }));
-                console.log(`📅 Registros normalizados:`, normalizedRecords);
                 generateCalendarDays(normalizedRecords);
             } else {
                 setError('No se encontraron registros');
                 setCalendarDays([]);
             }
         } catch (error: any) {
-            console.error('❌ Error al cargar datos:', error);
+            console.error('Error al cargar datos:', error);
             setError(error.message || 'Error al cargar los datos');
             setCalendarDays([]);
         } finally {
@@ -139,33 +135,27 @@ export function AttendanceCalendarView() {
 
         const days: CalendarDay[] = [];
 
-        // Días del mes anterior
         for (let i = startingDayOfWeek - 1; i >= 0; i--) {
             const date = new Date(year, month, -i);
             days.push(createDayObject(date, false, records, todayStr));
         }
 
-        // Días del mes actual
         for (let i = 1; i <= daysInMonth; i++) {
             const date = new Date(year, month, i);
             days.push(createDayObject(date, true, records, todayStr));
         }
 
-        // Días del mes siguiente
         const remainingDays = 42 - days.length;
         for (let i = 1; i <= remainingDays; i++) {
             const date = new Date(year, month + 1, i);
             days.push(createDayObject(date, false, records, todayStr));
         }
 
-        console.log(`📅 Días generados: ${days.length} días`);
         setCalendarDays(days);
     };
 
     const createDayObject = (date: Date, isCurrentMonth: boolean, records: any[], todayStr: string): CalendarDay => {
         const dateStr = date.toISOString().split('T')[0];
-        
-        // Buscar registros para esta fecha (ya normalizada)
         const dayData = records.find((r: any) => r.date === dateStr);
         const dayRecords = dayData?.records || [];
         
@@ -176,7 +166,6 @@ export function AttendanceCalendarView() {
 
         let hoursWorked = dayData?.hoursWorked || null;
 
-        // Si no hay hoursWorked en los datos, calcular manualmente
         if (hoursWorked === null && dayRecords.length > 0) {
             const checkIn = dayRecords.find((r: any) => r.type === 'check_in');
             const checkOut = dayRecords.find((r: any) => r.type === 'check_out');
@@ -260,36 +249,208 @@ export function AttendanceCalendarView() {
         }
     };
 
-    const exportMonthData = () => {
-        const monthData = calendarDays
-            .filter(day => day.isCurrentMonth && !day.isWeekend)
-            .map(day => ({
-                Fecha: new Date(day.date + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric' }),
-                Tipo: day.isSaturday ? 'Sábado' : 'Regular',
-                Estado: day.status.includes('complete') ? 'Completo' : day.status.includes('incomplete') ? 'Incompleto' : 'Ausente',
-                Entrada: day.records.find(r => r.type === 'check_in')?.timestamp
-                    ? new Date(day.records.find(r => r.type === 'check_in')!.timestamp).toLocaleTimeString('es-ES')
-                    : '--:--',
-                Salida: day.records.find(r => r.type === 'check_out')?.timestamp
-                    ? new Date(day.records.find(r => r.type === 'check_out')!.timestamp).toLocaleTimeString('es-ES')
-                    : '--:--',
-                'Horas Trabajadas': day.hoursWorked ? day.hoursWorked.toFixed(2) : '0.00',
-            }));
+    const getStatusText = (status: CalendarDay['status']): string => {
+        switch (status) {
+            case 'complete': return 'Completo';
+            case 'incomplete': return 'Incompleto';
+            case 'absent': return 'Ausente';
+            case 'weekend': return 'Domingo';
+            case 'saturday_complete': return 'Completo (Sáb)';
+            case 'saturday_incomplete': return 'Incompleto (Sáb)';
+            case 'saturday_absent': return 'Ausente (Sáb)';
+        }
+    };
 
+    const formatTime = (timestamp: string | undefined): string => {
+        if (!timestamp) return '--:--';
+        return new Date(timestamp).toLocaleTimeString('es-ES', {
+            hour: '2-digit',
+            minute: '2-digit',
+        });
+    };
+
+    const exportToExcel = async () => {
+        const monthData = calendarDays.filter(day => day.isCurrentMonth && !day.isWeekend);
         if (monthData.length === 0) return;
 
-        const csv = [
-            Object.keys(monthData[0]).join(','),
-            ...monthData.map(row => Object.values(row).join(','))
-        ].join('\n');
+        setExporting(true);
 
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        const userName = users.find(u => u.id.toString() === selectedUser)?.name || 'usuario';
-        a.download = `asistencia_${userName}_${currentDate.getFullYear()}_${currentDate.getMonth() + 1}.csv`;
-        a.click();
+        try {
+            const workbook = new ExcelJS.Workbook();
+            workbook.creator = 'Sistema de Asistencia';
+            workbook.created = new Date();
+
+            const worksheet = workbook.addWorksheet('Asistencia', {
+                properties: { tabColor: { argb: '2563EB' } }
+            });
+
+            // Configurar columnas
+            worksheet.columns = [
+                { header: 'Fecha', key: 'fecha', width: 20 },
+                { header: 'Día', key: 'dia', width: 12 },
+                { header: 'Tipo', key: 'tipo', width: 14 },
+                { header: 'Estado', key: 'estado', width: 16 },
+                { header: 'Entrada', key: 'entrada', width: 12 },
+                { header: 'Salida Comida', key: 'salida_comida', width: 14 },
+                { header: 'Regreso Comida', key: 'regreso_comida', width: 14 },
+                { header: 'Salida', key: 'salida', width: 12 },
+                { header: 'Horas Trab.', key: 'horas', width: 14 },
+                { header: 'Notas', key: 'notas', width: 30 },
+            ];
+
+            // Título
+            const userName = users.find(u => u.id.toString() === selectedUser)?.name || 'Usuario';
+            const monthName = currentDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+
+            worksheet.mergeCells('A1:J1');
+            const titleCell = worksheet.getCell('A1');
+            titleCell.value = `Reporte de Asistencia - ${userName} - ${monthName}`;
+            titleCell.font = { name: 'Arial', size: 14, bold: true, color: { argb: '1E40AF' } };
+            titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+            titleCell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'DBEAFE' }
+            };
+            worksheet.getRow(1).height = 30;
+
+            // Subtítulo con resumen
+            worksheet.mergeCells('A2:J2');
+            const totalDays = monthData.length;
+            const completeDays = monthData.filter(d => d.status.includes('complete')).length;
+            const incompleteDays = monthData.filter(d => d.status.includes('incomplete')).length;
+            const absentDays = monthData.filter(d => d.status.includes('absent')).length;
+            const totalHours = monthData.reduce((sum, d) => sum + (d.hoursWorked || 0), 0);
+
+            const subtitleCell = worksheet.getCell('A2');
+            subtitleCell.value = `Total días: ${totalDays} | Completos: ${completeDays} | Incompletos: ${incompleteDays} | Ausentes: ${absentDays} | Horas totales: ${totalHours.toFixed(1)}h`;
+            subtitleCell.font = { name: 'Arial', size: 10, italic: true, color: { argb: '6B7280' } };
+            subtitleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+            worksheet.getRow(2).height = 22;
+
+            // Headers
+            const headerRow = worksheet.getRow(4);
+            headerRow.values = ['Fecha', 'Día', 'Tipo', 'Estado', 'Entrada', 'Salida Comida', 'Regreso Comida', 'Salida', 'Horas Trab.', 'Notas'];
+            headerRow.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFF' } };
+            headerRow.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: '2563EB' }
+            };
+            headerRow.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+            headerRow.height = 25;
+            headerRow.border = {
+                top: { style: 'thin' },
+                left: { style: 'thin' },
+                bottom: { style: 'thin' },
+                right: { style: 'thin' }
+            };
+
+            // Datos
+            let currentRow = 5;
+            let totalHoras = 0;
+
+            monthData.forEach((day) => {
+                const fecha = new Date(day.date + 'T12:00:00');
+                const diaSemana = fecha.toLocaleDateString('es-ES', { weekday: 'long' });
+                const fechaFormato = fecha.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+                const tipo = day.isSaturday ? 'Sábado' : 'Regular';
+                const estado = getStatusText(day.status);
+                const entrada = formatTime(day.records.find(r => r.type === 'check_in')?.timestamp);
+                const salidaComida = formatTime(day.records.find(r => r.type === 'lunch_out')?.timestamp);
+                const regresoComida = formatTime(day.records.find(r => r.type === 'lunch_in')?.timestamp);
+                const salida = formatTime(day.records.find(r => r.type === 'check_out')?.timestamp);
+                const horas = day.hoursWorked || 0;
+                totalHoras += horas;
+                const notas = day.records.map(r => r.notes).filter(Boolean).join('; ') || '';
+
+                const row = worksheet.getRow(currentRow);
+                row.values = [fechaFormato, diaSemana, tipo, estado, entrada, salidaComida, regresoComida, salida, horas.toFixed(2), notas];
+                row.font = { name: 'Arial', size: 10 };
+                row.alignment = { horizontal: 'center', vertical: 'middle' };
+                row.height = 22;
+                row.border = {
+                    top: { style: 'thin' },
+                    left: { style: 'thin' },
+                    bottom: { style: 'thin' },
+                    right: { style: 'thin' }
+                };
+
+                // Colorear según estado
+                let bgColor = 'FFFFFF';
+                if (estado.includes('Completo')) bgColor = 'DCFCE7';
+                else if (estado.includes('Incompleto')) bgColor = 'FEF9C3';
+                else if (estado.includes('Ausente')) bgColor = 'FEE2E2';
+
+                row.eachCell((cell) => {
+                    cell.fill = {
+                        type: 'pattern',
+                        pattern: 'solid',
+                        fgColor: { argb: bgColor }
+                    };
+                });
+
+                // Resaltar sábados
+                if (day.isSaturday) {
+                    row.getCell(3).font = { name: 'Arial', size: 10, bold: true, color: { argb: '2563EB' } };
+                }
+
+                currentRow++;
+            });
+
+            // Fila de totales
+            const totalRow = worksheet.getRow(currentRow);
+            worksheet.mergeCells(`A${currentRow}:H${currentRow}`);
+            totalRow.getCell(1).value = 'TOTALES';
+            totalRow.getCell(1).font = { name: 'Arial', size: 11, bold: true };
+            totalRow.getCell(1).alignment = { horizontal: 'right', vertical: 'middle' };
+            totalRow.getCell(9).value = totalHoras.toFixed(2);
+            totalRow.getCell(9).font = { name: 'Arial', size: 11, bold: true, color: { argb: '2563EB' } };
+            totalRow.getCell(9).alignment = { horizontal: 'center' };
+            totalRow.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'DBEAFE' }
+            };
+            totalRow.height = 25;
+            totalRow.eachCell((cell) => {
+                cell.border = {
+                    top: { style: 'thin' },
+                    left: { style: 'thin' },
+                    bottom: { style: 'thin' },
+                    right: { style: 'thin' }
+                };
+            });
+
+            // Ajustar bordes de la tabla
+            worksheet.eachRow((row, rowNumber) => {
+                if (rowNumber >= 4) {
+                    row.eachCell((cell) => {
+                        cell.border = {
+                            top: { style: 'thin' },
+                            left: { style: 'thin' },
+                            bottom: { style: 'thin' },
+                            right: { style: 'thin' }
+                        };
+                    });
+                }
+            });
+
+            // Generar y descargar
+            const buffer = await workbook.xlsx.writeBuffer();
+            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Asistencia_${userName.replace(/\s+/g, '_')}_${currentDate.getFullYear()}_${currentDate.getMonth() + 1}.xlsx`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Error al exportar:', error);
+            alert('Error al exportar el archivo Excel');
+        } finally {
+            setExporting(false);
+        }
     };
 
     const formatHours = (hours: number | null): string => {
@@ -319,10 +480,7 @@ export function AttendanceCalendarView() {
                         <User className="w-5 h-5 text-slate-600" />
                         <Select
                             value={selectedUser}
-                            onValueChange={(value) => {
-                                console.log('👤 Usuario seleccionado:', value);
-                                setSelectedUser(value ?? '');
-                            }}
+                            onValueChange={(value) => setSelectedUser(value ?? '')}
                         >
                             <SelectTrigger className="w-56">
                                 <SelectValue placeholder="Seleccionar usuario" />
@@ -338,9 +496,24 @@ export function AttendanceCalendarView() {
                     </div>
 
                     {selectedUser && (
-                        <Button onClick={exportMonthData} variant="outline" size="sm">
-                            <Download className="w-4 h-4 mr-2" />
-                            Exportar Mes
+                        <Button 
+                            onClick={exportToExcel} 
+                            variant="default" 
+                            size="sm"
+                            disabled={exporting}
+                            className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                        >
+                            {exporting ? (
+                                <>
+                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                                    Exportando...
+                                </>
+                            ) : (
+                                <>
+                                    <FileSpreadsheet className="w-4 h-4 mr-2" />
+                                    Exportar Excel
+                                </>
+                            )}
                         </Button>
                     )}
                 </div>
@@ -390,11 +563,6 @@ export function AttendanceCalendarView() {
                                 {[...Array(42)].map((_, i) => (
                                     <div key={i} className="aspect-square animate-pulse bg-slate-100 dark:bg-slate-800 rounded-lg" />
                                 ))}
-                            </div>
-                        ) : calendarDays.length === 0 && !loading ? (
-                            <div className="text-center py-8">
-                                <CalendarIcon className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                                <p className="text-slate-500">No se pudieron generar los días del calendario</p>
                             </div>
                         ) : (
                             <div className="grid grid-cols-7 gap-1">
@@ -545,3 +713,5 @@ export function AttendanceCalendarView() {
         </div>
     );
 }
+
+//holiiii
