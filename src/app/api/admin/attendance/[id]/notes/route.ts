@@ -12,7 +12,7 @@ export async function PUT(
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    const { id } = await params; // 👈 await aquí
+    const { id } = await params; // await aquí
     const recordId = parseInt(id);
     const { notes } = await req.json();
 
