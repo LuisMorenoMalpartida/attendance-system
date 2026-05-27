@@ -5,7 +5,7 @@ import { verifyAuth } from '@/lib/auth';
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const admin = await verifyAuth(req);
@@ -13,7 +13,8 @@ export async function POST(
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
 
-    const userId = parseInt(params.id);
+    const { id } = await params; // await aquí
+    const userId = parseInt(id);
     const formData = await req.formData();
     const file = formData.get('photo') as File;
 
@@ -21,7 +22,6 @@ export async function POST(
       return NextResponse.json({ error: 'No se proporcionó imagen' }, { status: 400 });
     }
 
-    // Eliminar foto anterior
     const currentUser = await db.query(
       'SELECT profile_photo FROM users WHERE id = $1',
       [userId]
@@ -31,7 +31,6 @@ export async function POST(
       await storage.deleteProfilePhoto(currentUser.rows[0].profile_photo);
     }
 
-    // Subir nueva foto
     const photoUrl = await storage.uploadProfilePhoto(file, userId);
 
     await db.query(

@@ -5,7 +5,7 @@ import { verifyAuth } from '@/lib/auth';
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await verifyAuth(req);
@@ -13,7 +13,8 @@ export async function POST(
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    const absenceId = parseInt(params.id);
+    const { id } = await params; // 👈 await aquí
+    const absenceId = parseInt(id);
     const formData = await req.formData();
     const file = formData.get('document') as File;
 
@@ -21,7 +22,6 @@ export async function POST(
       return NextResponse.json({ error: 'No se proporcionó documento' }, { status: 400 });
     }
 
-    // Validar que la ausencia pertenece al usuario
     const absence = await db.query(
       'SELECT * FROM absences WHERE id = $1 AND user_id = $2',
       [absenceId, user.userId]
@@ -53,7 +53,7 @@ export async function POST(
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await verifyAuth(req);
@@ -61,7 +61,8 @@ export async function GET(
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    const absenceId = parseInt(params.id);
+    const { id } = await params; // await aquí
+    const absenceId = parseInt(id);
 
     const absence = await db.query(
       'SELECT document_url FROM absences WHERE id = $1 AND user_id = $2',
@@ -72,7 +73,6 @@ export async function GET(
       return NextResponse.json({ error: 'Documento no encontrado' }, { status: 404 });
     }
 
-    // Redirigir a la URL del documento (privado)
     return NextResponse.redirect(absence.rows[0].document_url);
   } catch (error) {
     console.error('Error al obtener documento:', error);
