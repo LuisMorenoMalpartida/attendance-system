@@ -138,10 +138,10 @@ export async function GET(req: NextRequest) {
 
     const result = await db.query(query, params);
 
-    // 👇 Normalizar timestamps a hora Perú
+    // Devolver timestamps crudos desde la BD (para preservar la hora local del dispositivo)
     const normalizedRows = result.rows.map((row: any) => ({
       ...row,
-      timestamp: formatPeruTimestamp(row.timestamp),
+      timestamp: String(row.timestamp),
     }));
 
     // Agrupar por fecha
@@ -193,8 +193,8 @@ export async function POST(req: NextRequest) {
 
     const { type, latitude, longitude, deviceInfo, notes, timestamp } = await req.json();
 
-    // Timestamp en hora Perú
-    const localTimestamp = timestamp ? formatPeruTimestamp(timestamp) : getPeruNowTimestamp();
+    // Usar timestamp enviado por el dispositivo si lo hay, sino hora servidor (Perú)
+    const localTimestamp = timestamp || getPeruNowTimestamp();
     const today = localTimestamp.split('T')[0];
 
     console.log('📝 Registrando:', { type, localTimestamp, today });
@@ -233,7 +233,7 @@ export async function POST(req: NextRequest) {
       message: 'Registro exitoso',
       record: {
         ...result.rows[0],
-        timestamp: formatPeruTimestamp(result.rows[0].timestamp),
+        timestamp: String(result.rows[0].timestamp),
       },
     });
   } catch (error) {

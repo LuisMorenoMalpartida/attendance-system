@@ -95,9 +95,19 @@ export function AttendanceCard() {
       // 👇 Obtener ubicación fresca
       const currentLocation = await getCurrentLocation();
 
-      // 👇 Obtener timestamp en hora Perú
-      const peruTimestamp = getPeruNowTimestamp();
-      console.log('📤 Enviando timestamp Perú:', peruTimestamp);
+      // 👉 Construir timestamp local del dispositivo (YYYY-MM-DD HH:MM:SS)
+      const getDeviceLocalTimestampString = () => {
+        const d = new Date();
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mm = String(d.getMinutes()).padStart(2, '0');
+        const ss = String(d.getSeconds()).padStart(2, '0');
+        return `${y}-${m}-${day} ${hh}:${mm}:${ss}`;
+      };
+
+      const deviceTimestamp = getDeviceLocalTimestampString();
 
       const response = await fetch('/api/attendance', {
         method: 'POST',
@@ -107,6 +117,7 @@ export function AttendanceCard() {
           latitude: currentLocation?.latitude ?? null,
           longitude: currentLocation?.longitude ?? null,
           deviceInfo: navigator.userAgent,
+          timestamp: deviceTimestamp,
         }),
       });
 
@@ -118,7 +129,7 @@ export function AttendanceCard() {
       }
 
       setSuccess(`¡${getTypeLabel(type)} registrado exitosamente!`);
-      setLastRecord({ type, timestamp: peruTimestamp });
+      setLastRecord({ type, timestamp: deviceTimestamp });
       
       gsap.fromTo('.success-message',
         { scale: 0.8, opacity: 0 },

@@ -129,13 +129,13 @@ export async function GET(req: NextRequest) {
     );
 
     const last = lastRecord.rows[0] || null;
-    const lastFormatted = last ? { ...last, timestamp: formatPeruTimestamp(last.timestamp) } : null;
+    const lastRaw = last ? { ...last, timestamp: String(last.timestamp) } : null;
 
     return NextResponse.json({
-      lastRecord: lastFormatted,
+      lastRecord: lastRaw,
       todayRecords: todayRecords.rows.map((r: any) => ({
         ...r,
-        timestamp: formatPeruTimestamp(r.timestamp),
+        timestamp: String(r.timestamp),
       })),
     });
   } catch (error) {
@@ -176,7 +176,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       message: 'Registro exitoso',
-      record: result.rows[0],
+      record: { ...result.rows[0], timestamp: String(result.rows[0].timestamp) },
     });
   } catch (error) {
     console.error('Error en registro:', error);

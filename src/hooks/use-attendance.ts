@@ -61,6 +61,18 @@ export function useAttendance() {
     setLoading(true);
 
     try {
+      // Construir timestamp local del dispositivo en formato "YYYY-MM-DD HH:MM:SS"
+      const getDeviceLocalTimestampString = () => {
+        const d = new Date();
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mm = String(d.getMinutes()).padStart(2, '0');
+        const ss = String(d.getSeconds()).padStart(2, '0');
+        return `${y}-${m}-${day} ${hh}:${mm}:${ss}`;
+      };
+
       const response = await fetch('/api/attendance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -69,6 +81,7 @@ export function useAttendance() {
           latitude: location.latitude,
           longitude: location.longitude,
           deviceInfo: navigator.userAgent,
+          timestamp: getDeviceLocalTimestampString(),
         }),
       });
 
