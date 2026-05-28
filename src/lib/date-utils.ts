@@ -68,18 +68,25 @@ function extractDate(timestamp: string): string {
  * "2026-05-27" → Date con 12:00 en hora local
  */
 function parseLocalDate(dateStr: string): Date {
-  // Extraer fecha y hora
-  const [datePart, timePart] = dateStr.split('T');
-  const [year, month, day] = datePart.split('-').map(Number);
-  
+  if (!dateStr) return new Date(NaN);
+
+  // Normalizar separador 'T' o espacio, quitar milisegundos y offsets
+  let s = String(dateStr).trim();
+  // Reemplazar separador espacio por 'T' para manejo uniforme
+  s = s.replace(' ', 'T');
+  // Quitar parte fractional (ej. .123) y zona (Z, +05:00, -0500)
+  s = s.split('.')[0].replace(/([+-]\d{2}:?\d{2}|Z)$/, '');
+
+  const [datePart, timePart] = s.split('T');
+  const [year, month, day] = (datePart || '').split('-').map(Number);
+
   if (timePart) {
-    const [hours, minutes, seconds] = timePart.split(':').map(Number);
-    // new Date(año, mes-1, día, hora, min, seg) → SIEMPRE hora local
-    return new Date(year, month - 1, day, hours || 0, minutes || 0, seconds || 0);
+    const [hours, minutes, seconds] = (timePart || '').split(':').map(Number);
+    return new Date(year, (month || 1) - 1, day || 1, hours || 0, minutes || 0, seconds || 0);
   }
-  
+
   // Solo fecha, usar mediodía para evitar cambios de zona
-  return new Date(year, month - 1, day, 12, 0, 0);
+  return new Date(year, (month || 1) - 1, day || 1, 12, 0, 0);
 }
 
 // ============================================================
