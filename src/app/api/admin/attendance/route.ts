@@ -71,8 +71,8 @@ function parseLocalTimestamp(ts: string): Date {
 async function validateFlow(userId: number, type: string, date: string) {
   const records = await db.query(
     `SELECT type FROM attendance_records 
-     WHERE user_id = $1 AND DATE(timestamp) = $2 
-     ORDER BY timestamp`,
+     WHERE user_id = $1 AND DATE(timestamp::timestamp) = $2 
+     ORDER BY timestamp::timestamp`,
     [userId, date]
   );
   const types = records.rows.map((r: any) => r.type);
@@ -120,11 +120,11 @@ export async function GET(req: NextRequest) {
       SELECT 
         ar.id, ar.user_id, u.name as user_name, ar.type, 
         ar.timestamp, ar.notes, ar.is_manual, ar.latitude, ar.longitude,
-        DATE(ar.timestamp) as date
+        DATE(ar.timestamp::timestamp) as date
       FROM attendance_records ar
       JOIN users u ON ar.user_id = u.id
-      WHERE EXTRACT(YEAR FROM ar.timestamp) = $1
-      AND EXTRACT(MONTH FROM ar.timestamp) = $2
+      WHERE EXTRACT(YEAR FROM ar.timestamp::timestamp) = $1
+      AND EXTRACT(MONTH FROM ar.timestamp::timestamp) = $2
     `;
 
     const params: any[] = [year, month];
@@ -134,7 +134,7 @@ export async function GET(req: NextRequest) {
       params.push(admin.userId);
     }
 
-    query += ' ORDER BY DATE(ar.timestamp) DESC, ar.timestamp ASC';
+    query += ' ORDER BY DATE(ar.timestamp::timestamp) DESC, ar.timestamp ASC';
 
     const result = await db.query(query, params);
 
@@ -202,8 +202,8 @@ export async function POST(req: NextRequest) {
     // Evitar duplicados consecutivos
     const lastRecord = await db.query(
       `SELECT * FROM attendance_records 
-       WHERE user_id = $1 AND DATE(timestamp) = $2 
-       ORDER BY timestamp DESC LIMIT 1`,
+       WHERE user_id = $1 AND DATE(timestamp::timestamp) = $2 
+       ORDER BY timestamp::timestamp DESC LIMIT 1`,
       [user.userId, today]
     );
 
@@ -224,7 +224,7 @@ export async function POST(req: NextRequest) {
     const result = await db.query(
       `INSERT INTO attendance_records 
        (user_id, type, timestamp, latitude, longitude, device_info, notes)
-       VALUES ($1, $2, $3::timestamp, $4, $5, $6, $7) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7) 
        RETURNING *`,
       [user.userId, type, localTimestamp, latitude, longitude, deviceInfo, notes]
     );

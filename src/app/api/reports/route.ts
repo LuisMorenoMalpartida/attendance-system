@@ -27,16 +27,18 @@ export async function GET(req: NextRequest) {
             COUNT(CASE WHEN ar.type = 'check_out' THEN 1 END) as check_outs,
             MIN(CASE WHEN ar.type = 'check_in' THEN ar.timestamp END) as first_check_in,
             MAX(CASE WHEN ar.type = 'check_out' THEN ar.timestamp END) as last_check_out,
-            COUNT(DISTINCT CASE WHEN ar.type = 'check_in' THEN DATE(ar.timestamp) END) as days_attended,
+            COUNT(DISTINCT CASE WHEN ar.type = 'check_in' THEN DATE(ar.timestamp::timestamp) END) as days_attended,
             COALESCE(
               EXTRACT(EPOCH FROM 
-                (MAX(CASE WHEN ar.type = 'check_out' THEN ar.timestamp END) - 
-                 MIN(CASE WHEN ar.type = 'check_in' THEN ar.timestamp END))
+                (
+                  MAX(CASE WHEN ar.type = 'check_out' THEN ar.timestamp END)::timestamp - 
+                  MIN(CASE WHEN ar.type = 'check_in' THEN ar.timestamp END)::timestamp
+                )
               ) / 3600, 0
             ) as hours_worked
           FROM users u
           LEFT JOIN attendance_records ar ON u.id = ar.user_id
-            AND DATE(ar.timestamp) = $1
+            AND DATE(ar.timestamp::timestamp) = $1
           WHERE u.is_active = true
         `;
         params = [startDate || new Date().toISOString().split('T')[0]];

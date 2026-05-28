@@ -17,13 +17,13 @@ export async function GET(req: NextRequest) {
       // Estadísticas personales del admin
       const stats = await db.query(`
         SELECT 
-          (SELECT COUNT(DISTINCT DATE(timestamp)) 
+          (SELECT COUNT(DISTINCT DATE(timestamp::timestamp)) 
            FROM attendance_records 
            WHERE user_id = $1 
-           AND EXTRACT(MONTH FROM timestamp) = EXTRACT(MONTH FROM CURRENT_DATE)) as days_worked,
-          COALESCE(AVG(CASE WHEN type = 'check_in' THEN EXTRACT(HOUR FROM timestamp) + EXTRACT(MINUTE FROM timestamp)/60.0 END), 0) as avg_check_in,
-          COALESCE(AVG(CASE WHEN type = 'check_out' THEN EXTRACT(HOUR FROM timestamp) + EXTRACT(MINUTE FROM timestamp)/60.0 END), 0) as avg_check_out,
-          COALESCE(SUM(CASE WHEN type = 'check_in' AND DATE(timestamp) = $2 THEN 1 ELSE 0 END), 0) as present_today
+           AND EXTRACT(MONTH FROM timestamp::timestamp) = EXTRACT(MONTH FROM CURRENT_DATE)) as days_worked,
+          COALESCE(AVG(CASE WHEN type = 'check_in' THEN EXTRACT(HOUR FROM timestamp::timestamp) + EXTRACT(MINUTE FROM timestamp::timestamp)/60.0 END), 0) as avg_check_in,
+          COALESCE(AVG(CASE WHEN type = 'check_out' THEN EXTRACT(HOUR FROM timestamp::timestamp) + EXTRACT(MINUTE FROM timestamp::timestamp)/60.0 END), 0) as avg_check_out,
+          COALESCE(SUM(CASE WHEN type = 'check_in' AND DATE(timestamp::timestamp) = $2 THEN 1 ELSE 0 END), 0) as present_today
         FROM attendance_records
         WHERE user_id = $1
       `, [admin.userId, today]);
@@ -44,9 +44,9 @@ export async function GET(req: NextRequest) {
       db.query('SELECT COUNT(*) as total, COUNT(CASE WHEN is_active THEN 1 END) as active FROM users'),
       db.query(`
         SELECT 
-          COUNT(DISTINCT CASE WHEN DATE(timestamp) = $1 THEN user_id END) as present_today,
-          COUNT(DISTINCT CASE WHEN type = 'check_in' AND DATE(timestamp) = $1 
-            AND EXTRACT(HOUR FROM timestamp) >= 8 AND EXTRACT(MINUTE FROM timestamp) > 15 
+          COUNT(DISTINCT CASE WHEN DATE(timestamp::timestamp) = $1 THEN user_id END) as present_today,
+          COUNT(DISTINCT CASE WHEN type = 'check_in' AND DATE(timestamp::timestamp) = $1 
+            AND EXTRACT(HOUR FROM timestamp::timestamp) >= 8 AND EXTRACT(MINUTE FROM timestamp::timestamp) > 15 
             THEN user_id END) as late_arrivals
         FROM attendance_records
       `, [today]),

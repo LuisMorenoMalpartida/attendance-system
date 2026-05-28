@@ -143,7 +143,8 @@ export const attendanceRecords = pgTable(
 
     type: attendanceTypeEnum("type"),
 
-    timestamp: timestamp("timestamp")
+    // Guardamos el valor del timestamp como texto (ISO string)
+    timestamp: text("timestamp")
       .notNull(),
 
     latitude: decimal("latitude", {

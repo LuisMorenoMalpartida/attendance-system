@@ -51,29 +51,29 @@ export async function GET(req: NextRequest) {
     // Estadísticas del mes actual
     const monthStats = await db.query(
       `SELECT 
-        COUNT(DISTINCT DATE(timestamp)) as days_worked,
+        COUNT(DISTINCT DATE(timestamp::timestamp)) as days_worked,
         COUNT(CASE WHEN type = 'check_in' AND (
-          EXTRACT(HOUR FROM timestamp) > 8 
-          OR (EXTRACT(HOUR FROM timestamp) = 8 AND EXTRACT(MINUTE FROM timestamp) > 15)
+          EXTRACT(HOUR FROM timestamp::timestamp) > 8 
+          OR (EXTRACT(HOUR FROM timestamp::timestamp) = 8 AND EXTRACT(MINUTE FROM timestamp::timestamp) > 15)
         ) THEN 1 END) as late_arrivals,
         AVG(CASE WHEN type = 'check_in' 
-          THEN EXTRACT(HOUR FROM timestamp) * 60 + EXTRACT(MINUTE FROM timestamp) 
+          THEN EXTRACT(HOUR FROM timestamp::timestamp) * 60 + EXTRACT(MINUTE FROM timestamp::timestamp) 
           END) as avg_check_in_minutes,
         AVG(CASE WHEN type = 'check_out' 
-          THEN EXTRACT(HOUR FROM timestamp) * 60 + EXTRACT(MINUTE FROM timestamp) 
+          THEN EXTRACT(HOUR FROM timestamp::timestamp) * 60 + EXTRACT(MINUTE FROM timestamp::timestamp) 
           END) as avg_check_out_minutes
        FROM attendance_records 
        WHERE user_id = $1 
-       AND EXTRACT(MONTH FROM timestamp) = EXTRACT(MONTH FROM CURRENT_DATE)
-       AND EXTRACT(YEAR FROM timestamp) = EXTRACT(YEAR FROM CURRENT_DATE)`,
+       AND EXTRACT(MONTH FROM timestamp::timestamp) = EXTRACT(MONTH FROM CURRENT_DATE)
+       AND EXTRACT(YEAR FROM timestamp::timestamp) = EXTRACT(YEAR FROM CURRENT_DATE)`,
       [userId]
     );
 
     // Horas trabajadas hoy
     const todayRecords = await db.query(
       `SELECT * FROM attendance_records 
-       WHERE user_id = $1 AND DATE(timestamp) = $2 
-       ORDER BY timestamp`,
+       WHERE user_id = $1 AND DATE(timestamp::timestamp) = $2 
+       ORDER BY timestamp::timestamp`,
       [userId, today]
     );
 

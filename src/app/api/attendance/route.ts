@@ -71,8 +71,8 @@ function getPeruToday(): string {
 async function validateFlow(userId: number, type: string, date: string) {
   const records = await db.query(
     `SELECT type FROM attendance_records 
-     WHERE user_id = $1 AND DATE(timestamp) = $2 
-     ORDER BY timestamp`,
+     WHERE user_id = $1 AND DATE(timestamp::timestamp) = $2 
+     ORDER BY timestamp::timestamp`,
     [userId, date]
   );
   const types = records.rows.map((r: any) => r.type);
@@ -116,15 +116,15 @@ export async function GET(req: NextRequest) {
 
     const lastRecord = await db.query(
       `SELECT * FROM attendance_records 
-       WHERE user_id = $1 AND DATE(timestamp) = $2 
-       ORDER BY timestamp DESC LIMIT 1`,
+       WHERE user_id = $1 AND DATE(timestamp::timestamp) = $2 
+       ORDER BY timestamp::timestamp DESC LIMIT 1`,
       [user.userId, date]
     );
 
     const todayRecords = await db.query(
       `SELECT * FROM attendance_records 
-       WHERE user_id = $1 AND DATE(timestamp) = $2 
-       ORDER BY timestamp ASC`,
+       WHERE user_id = $1 AND DATE(timestamp::timestamp) = $2 
+       ORDER BY timestamp::timestamp ASC`,
       [user.userId, date]
     );
 
@@ -169,7 +169,7 @@ export async function POST(req: NextRequest) {
     const result = await db.query(
       `INSERT INTO attendance_records 
        (user_id, type, timestamp, latitude, longitude, device_info, notes)
-       VALUES ($1, $2, $3::timestamp, $4, $5, $6, $7) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7) 
        RETURNING *`,
       [user.userId, type, localTimestamp, latitude, longitude, deviceInfo, notes]
     );

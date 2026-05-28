@@ -21,12 +21,12 @@ export async function GET(
     const result = await db.query(
       `SELECT 
         ar.id, ar.type, ar.timestamp, ar.notes, ar.is_manual, 
-        ar.latitude, ar.longitude, DATE(ar.timestamp) as date
+        ar.latitude, ar.longitude, DATE(ar.timestamp::timestamp) as date
        FROM attendance_records ar
        WHERE ar.user_id = $1
-       AND EXTRACT(YEAR FROM ar.timestamp) = $2
-       AND EXTRACT(MONTH FROM ar.timestamp) = $3
-       ORDER BY DATE(ar.timestamp) DESC, ar.timestamp ASC`,
+      AND EXTRACT(YEAR FROM ar.timestamp::timestamp) = $2
+      AND EXTRACT(MONTH FROM ar.timestamp::timestamp) = $3
+      ORDER BY DATE(ar.timestamp::timestamp) DESC, ar.timestamp ASC`,
       [userId, year, month]
     );
 
