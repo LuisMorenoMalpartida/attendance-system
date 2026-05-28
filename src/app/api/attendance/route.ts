@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyAuth } from '@/lib/auth';
+import { publishEvent } from '@/lib/sse';
 
 // ============================================================
 // HELPERS
@@ -173,6 +174,14 @@ export async function POST(req: NextRequest) {
        RETURNING *`,
       [user.userId, type, localTimestamp, latitude, longitude, deviceInfo, notes]
     );
+
+    // Emit SSE event to connected clients
+    try {
+      const rec = { ...result.rows[0], timestamp: String(result.rows[0].timestamp) };
+      publishEvent('attendance', { userId: user.userId, record: rec });
+    } catch (e) {
+      console.warn('SSE publish failed', e);
+    }
 
     return NextResponse.json({
       message: 'Registro exitoso',

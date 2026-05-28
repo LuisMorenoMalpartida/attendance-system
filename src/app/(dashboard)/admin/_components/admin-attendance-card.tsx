@@ -1,6 +1,7 @@
-'use client';
+"use client";
 
 import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   LogIn,
   LogOut,
@@ -22,6 +23,14 @@ interface LastRecord {
   timestamp: string;
 }
 
+type MutationPayload = {
+  type: AttendanceType;
+  latitude: number | null;
+  longitude: number | null;
+  deviceInfo?: string;
+  timestamp: string;
+};
+
 export function AdminAttendanceCard() {
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [lastRecord, setLastRecord] = useState<LastRecord | null>(null);
@@ -31,7 +40,6 @@ export function AdminAttendanceCard() {
 
   useEffect(() => {
     getCurrentLocation();
-    fetchLastRecord();
   }, []);
 
   const getCurrentLocation = async (): Promise<{ latitude: number; longitude: number } | null> => {
@@ -64,20 +72,22 @@ export function AdminAttendanceCard() {
     }
   };
 
-  const fetchLastRecord = async () => {
-    try {
-      const today = getPeruNowTimestamp().split('T')[0];
-      const response = await fetch(`/api/attendance?date=${today}`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.lastRecord) {
-          setLastRecord(data.lastRecord);
-        }
-      }
-    } catch (error) {
-      console.error('Error al cargar último registro:', error);
-    }
-  };
+  const queryClient = useQueryClient();
+  const today = getPeruNowTimestamp().split('T')[0];
+
+  const { data: todayData } = useQuery({
+    queryKey: ['attendance', today],
+    queryFn: async () => {
+      const res = await fetch(`/api/attendance?date=${today}`);
+      if (!res.ok) throw new Error('Error fetching attendance');
+      return res.json();
+    },
+    staleTime: 30_000,
+  });
+
+  useEffect(() => {
+    if (todayData?.lastRecord) setLastRecord(todayData.lastRecord);
+  }, [todayData]);
 
   useGSAP(() => {
     gsap.fromTo('.attendance-action',
@@ -92,30 +102,16 @@ export function AdminAttendanceCard() {
       setError(null);
       setSuccess(null);
 
-      // Obtener ubicación fresca
       const currentLocation = await getCurrentLocation();
-
-      // Usar timestamp normalizado a hora Perú con 'T' (YYYY-MM-DDTHH:MM:SS)
       const deviceTimestamp = getPeruNowTimestamp();
 
-      const response = await fetch('/api/attendance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type,
-          latitude: currentLocation?.latitude ?? null,
-          longitude: currentLocation?.longitude ?? null,
-          deviceInfo: navigator.userAgent,
-          timestamp: deviceTimestamp,
-        }),
+      await mutation.mutateAsync({
+        type,
+        latitude: currentLocation?.latitude ?? null,
+        longitude: currentLocation?.longitude ?? null,
+        deviceInfo: navigator.userAgent,
+        timestamp: deviceTimestamp,
       });
-
-      const data = await response.json();
-      console.log('📥 Respuesta del servidor:', data);
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Error al registrar');
-      }
 
       setSuccess(`¡${getTypeLabel(type)} registrado exitosamente!`);
       setLastRecord({ type, timestamp: deviceTimestamp });
@@ -137,6 +133,63 @@ export function AdminAttendanceCard() {
       setLoading(null);
     }
   };
+
+  const mutation = useMutation({
+    mutationFn: async (payload: MutationPayload) => {
+      const res = await fetch('/api/attendance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al registrar');
+      return data;
+    },
+    onMutate: async (newRecord: MutationPayload) => {
+      await queryClient.cancelQueries({ queryKey: ['attendance', today] });
+      const previous = queryClient.getQueryData(['attendance', today]);
+
+      const optimistic = { type: newRecord.type, timestamp: newRecord.timestamp };
+      queryClient.setQueryData(['attendance', today], (old: any) => {
+        if (!old) return { lastRecord: optimistic, todayRecords: [optimistic] };
+        return { ...old, lastRecord: optimistic, todayRecords: [...(old.todayRecords || []), optimistic] };
+      });
+
+      setLastRecord({ type: newRecord.type, timestamp: newRecord.timestamp });
+      return { previous };
+    },
+    onError: (err: unknown, newRecord: MutationPayload, context: any) => {
+      if (context?.previous) {
+        queryClient.setQueryData(['attendance', today], context.previous);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['attendance', today] });
+      // 👇 INVALIDA EL HISTORIAL DE ADMIN PARA QUE SE ACTUALICE AUTOMÁTICAMENTE
+      queryClient.invalidateQueries({ queryKey: ['admin-attendance-history'] });
+    }
+  });
+
+  // SSE subscription to update admin card in real-time
+  useEffect(() => {
+    try {
+      const es = new EventSource('/api/attendance/stream');
+      const onAttendance = (e: MessageEvent) => {
+        try {
+          JSON.parse(e.data);
+          queryClient.invalidateQueries({ queryKey: ['attendance', today] });
+          // 👇 También actualizar historial admin cuando llegue evento SSE
+          queryClient.invalidateQueries({ queryKey: ['admin-attendance-history'] });
+        } catch {}
+      };
+      es.addEventListener('attendance', onAttendance as EventListener);
+      es.onerror = () => es.close();
+      return () => { 
+        es.removeEventListener('attendance', onAttendance as EventListener); 
+        es.close(); 
+      };
+    } catch {}
+  }, [today, queryClient]);
 
   const getTypeLabel = (type: AttendanceType): string => {
     const labels: Record<AttendanceType, string> = {
@@ -168,7 +221,7 @@ export function AdminAttendanceCard() {
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-      <div className="relative h-2 bg-gradient-to-r from-amber-600 via-orange-600 to-red-600" />
+      <div className="relative h-2 bg-linear-to-r from-amber-600 via-orange-600 to-red-600" />
 
       <div className="p-6">
         <div className="flex items-center justify-between mb-6">
@@ -203,14 +256,14 @@ export function AdminAttendanceCard() {
 
         {error && (
           <div className="error-message mb-4 p-3 rounded-xl bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900 flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+            <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
             <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
           </div>
         )}
 
         {success && (
           <div className="success-message mb-4 p-3 rounded-xl bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-900 flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+            <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
             <p className="text-sm text-green-700 dark:text-green-400">{success}</p>
           </div>
         )}
@@ -234,7 +287,7 @@ export function AdminAttendanceCard() {
           <button 
             onClick={() => handleAttendanceRecord('check_in')} 
             disabled={isButtonDisabled('check_in')}
-            className={`attendance-action relative overflow-hidden p-4 rounded-xl font-medium text-white transition-all duration-300 bg-gradient-to-r from-blue-500 to-blue-600 ${isButtonDisabled('check_in') ? 'opacity-50 cursor-not-allowed' : 'hover:from-blue-600 hover:to-blue-700'}`}
+            className={`attendance-action relative overflow-hidden p-4 rounded-xl font-medium text-white transition-all duration-300 bg-linear-to-r from-blue-500 to-blue-600 ${isButtonDisabled('check_in') ? 'opacity-50 cursor-not-allowed' : 'hover:from-blue-600 hover:to-blue-700'}`}
           >
             <div className="relative z-10 flex items-center justify-center gap-2">
               {loading === 'check_in' ? (
@@ -249,7 +302,7 @@ export function AdminAttendanceCard() {
           <button 
             onClick={() => handleAttendanceRecord('lunch_out')} 
             disabled={isButtonDisabled('lunch_out')}
-            className={`attendance-action relative overflow-hidden p-4 rounded-xl font-medium text-white transition-all duration-300 bg-gradient-to-r from-orange-500 to-orange-600 ${isButtonDisabled('lunch_out') ? 'opacity-50 cursor-not-allowed' : 'hover:from-orange-600 hover:to-orange-700'}`}
+            className={`attendance-action relative overflow-hidden p-4 rounded-xl font-medium text-white transition-all duration-300 bg-linear-to-r from-orange-500 to-orange-600 ${isButtonDisabled('lunch_out') ? 'opacity-50 cursor-not-allowed' : 'hover:from-orange-600 hover:to-orange-700'}`}
           >
             <div className="relative z-10 flex items-center justify-center gap-2">
               {loading === 'lunch_out' ? (
@@ -264,7 +317,7 @@ export function AdminAttendanceCard() {
           <button 
             onClick={() => handleAttendanceRecord('lunch_in')} 
             disabled={isButtonDisabled('lunch_in')}
-            className={`attendance-action relative overflow-hidden p-4 rounded-xl font-medium text-white transition-all duration-300 bg-gradient-to-r from-green-500 to-green-600 ${isButtonDisabled('lunch_in') ? 'opacity-50 cursor-not-allowed' : 'hover:from-green-600 hover:to-green-700'}`}
+            className={`attendance-action relative overflow-hidden p-4 rounded-xl font-medium text-white transition-all duration-300 bg-linear-to-r from-green-500 to-green-600 ${isButtonDisabled('lunch_in') ? 'opacity-50 cursor-not-allowed' : 'hover:from-green-600 hover:to-green-700'}`}
           >
             <div className="relative z-10 flex items-center justify-center gap-2">
               {loading === 'lunch_in' ? (
@@ -279,7 +332,7 @@ export function AdminAttendanceCard() {
           <button 
             onClick={() => handleAttendanceRecord('check_out')} 
             disabled={isButtonDisabled('check_out')}
-            className={`attendance-action relative overflow-hidden p-4 rounded-xl font-medium text-white transition-all duration-300 bg-gradient-to-r from-red-500 to-red-600 ${isButtonDisabled('check_out') ? 'opacity-50 cursor-not-allowed' : 'hover:from-red-600 hover:to-red-700'}`}
+            className={`attendance-action relative overflow-hidden p-4 rounded-xl font-medium text-white transition-all duration-300 bg-linear-to-r from-red-500 to-red-600 ${isButtonDisabled('check_out') ? 'opacity-50 cursor-not-allowed' : 'hover:from-red-600 hover:to-red-700'}`}
           >
             <div className="relative z-10 flex items-center justify-center gap-2">
               {loading === 'check_out' ? (

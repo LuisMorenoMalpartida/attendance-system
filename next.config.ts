@@ -1,6 +1,11 @@
-import type { NextConfig } from "next";
+import path from 'path';
+import type { NextConfig } from 'next';
 
-const nextConfig = {
+const nextConfig: NextConfig = {
+  turbopack: {
+    root: path.join(__dirname),
+  },
+
   images: {
     remotePatterns: [
       {
@@ -10,6 +15,7 @@ const nextConfig = {
         pathname: '/**',
       },
     ],
+
     // Permite imágenes locales y de la API
     unoptimized: true,
   },

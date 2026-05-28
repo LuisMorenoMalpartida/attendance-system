@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Calendar, ChevronLeft, ChevronRight, LogIn, LogOut, Coffee, AlertCircle, Edit3, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,27 +25,34 @@ interface DayRecord {
 
 export function AttendanceHistory() {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [records, setRecords] = useState<DayRecord[]>([]);
-  const [loading, setLoading] = useState(true);
   const [editingNote, setEditingNote] = useState<number | null>(null);
   const [noteText, setNoteText] = useState('');
   const [showCorrectionModal, setShowCorrectionModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string>('');
 
-  useEffect(() => { fetchMonthRecords(); }, [currentDate]);
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth() + 1;
 
-  const fetchMonthRecords = async () => {
-    setLoading(true);
-    try {
-      const year = currentDate.getFullYear();
-      const month = currentDate.getMonth() + 1;
+  // 👇 USAR REACT QUERY CON LA MISMA QUERY KEY QUE INVALIDAMOS
+  const { data: records = [], isLoading: loading } = useQuery({
+    queryKey: ['attendance-history', year, month],
+    queryFn: async () => {
       const response = await fetch(`/api/attendance/history?year=${year}&month=${month}`);
-      if (response.ok) { const data = await response.json(); setRecords(data.records || []); }
-    } catch (error) { console.error('Error al cargar historial:', error); }
-    finally { setLoading(false); }
-  };
+      if (!response.ok) throw new Error('Error al cargar historial');
+      const data = await response.json();
+      return data.records || [];
+    },
+    staleTime: 30_000, // 30 segundos antes de considerar los datos "viejos"
+  });
 
-  useGSAP(() => { gsap.fromTo('.history-row', { opacity: 0, x: -10 }, { opacity: 1, x: 0, duration: 0.3, stagger: 0.05, ease: 'power2.out' }); }, [records]);
+  const queryClient = useQueryClient();
+
+  useGSAP(() => { 
+    gsap.fromTo('.history-row', 
+      { opacity: 0, x: -10 }, 
+      { opacity: 1, x: 0, duration: 0.3, stagger: 0.05, ease: 'power2.out' }
+    ); 
+  }, [records]);
 
   const changeMonth = (increment: number) => {
     const newDate = new Date(currentDate);
@@ -63,20 +71,42 @@ export function AttendanceHistory() {
   };
 
   const getTypeLabel = (type: string): string => {
-    const labels: Record<string, string> = { check_in: 'Entrada', lunch_out: 'Salida comida', lunch_in: 'Regreso comida', check_out: 'Salida' };
+    const labels: Record<string, string> = { 
+      check_in: 'Entrada', 
+      lunch_out: 'Salida comida', 
+      lunch_in: 'Regreso comida', 
+      check_out: 'Salida' 
+    };
     return labels[type] || type;
   };
 
   const saveNote = async (recordId: number) => {
     try {
-      await fetch(`/api/attendance/${recordId}/notes`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes: noteText }) });
-      setEditingNote(null); fetchMonthRecords();
-    } catch (error) { console.error('Error al guardar nota:', error); }
+      await fetch(`/api/attendance/${recordId}/notes`, { 
+        method: 'PUT', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ notes: noteText }) 
+      });
+      setEditingNote(null); 
+      // 👇 INVALIDAR PARA REFRESCAR
+      queryClient.invalidateQueries({ queryKey: ['attendance-history'] });
+    } catch (error) { 
+      console.error('Error al guardar nota:', error); 
+    }
   };
 
-  const isDayIncomplete = (day: DayRecord): boolean => { const hasCheckIn = day.records.some(r => r.type === 'check_in'); const hasCheckOut = day.records.some(r => r.type === 'check_out'); return hasCheckIn && !hasCheckOut; };
+  const isDayIncomplete = (day: DayRecord): boolean => { 
+    const hasCheckIn = day.records.some(r => r.type === 'check_in'); 
+    const hasCheckOut = day.records.some(r => r.type === 'check_out'); 
+    return hasCheckIn && !hasCheckOut; 
+  };
+  
   const isDayAbsent = (day: DayRecord): boolean => day.records.length === 0;
-  const handleRequestCorrection = (date: string) => { setSelectedDate(date); setShowCorrectionModal(true); };
+  
+  const handleRequestCorrection = (date: string) => { 
+    setSelectedDate(date); 
+    setShowCorrectionModal(true); 
+  };
 
   const getDayStatusColor = (day: DayRecord): string => {
     if (isDayAbsent(day)) return 'bg-red-50 dark:bg-red-950/30 border border-red-200';
@@ -104,7 +134,7 @@ export function AttendanceHistory() {
               <button onClick={() => changeMonth(-1)} className="p-2 rounded-lg hover:bg-slate-100"><ChevronLeft className="w-5 h-5" /></button>
               <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-100">
                 <Calendar className="w-4 h-4" />
-                <span className="text-sm font-medium">{formatMonthYear(currentDate)}</span> {/* ✅ */}
+                <span className="text-sm font-medium">{formatMonthYear(currentDate)}</span>
               </div>
               <button onClick={() => changeMonth(1)} className="p-2 rounded-lg hover:bg-slate-100"><ChevronRight className="w-5 h-5" /></button>
             </div>
@@ -116,7 +146,7 @@ export function AttendanceHistory() {
             <div className="text-center py-12"><Calendar className="w-12 h-12 text-slate-300 mx-auto mb-3" /><p className="text-slate-500">No hay registros este mes</p></div>
           ) : (
             <div className="space-y-3">
-              {records.map((day) => (
+              {records.map((day: DayRecord) => (
                 <div key={day.date} className={`history-row rounded-xl p-4 transition-colors ${getDayStatusColor(day)}`}>
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">

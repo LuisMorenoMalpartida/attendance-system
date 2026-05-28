@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     Calendar,
     ChevronLeft,
@@ -56,8 +57,6 @@ interface AdminAttendanceHistoryProps {
 
 export function AdminAttendanceHistory({ isOwnAttendance }: AdminAttendanceHistoryProps) {
     const [currentDate, setCurrentDate] = useState(new Date());
-    const [records, setRecords] = useState<DayRecord[]>([]);
-    const [loading, setLoading] = useState(true);
     const [typeFilter, setTypeFilter] = useState('all');
     const [editingRecord, setEditingRecord] = useState<any>(null);
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -68,33 +67,15 @@ export function AdminAttendanceHistory({ isOwnAttendance }: AdminAttendanceHisto
         timestamp: string;
         type: string;
     } | null>(null);
-    const [users, setUsers] = useState<Array<{ id: number; name: string }>>([]);
 
-    useEffect(() => {
-        if (!isOwnAttendance) {
-            fetchUsers();
-        }
-        fetchRecords();
-    }, [currentDate, isOwnAttendance]);
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth() + 1;
+    const queryClient = useQueryClient();
 
-    const fetchUsers = async () => {
-        try {
-            const response = await fetch('/api/admin/users?active=true');
-            if (response.ok) {
-                const data = await response.json();
-                setUsers(data.users || []);
-            }
-        } catch (error) {
-            console.error('Error al cargar usuarios:', error);
-        }
-    };
-
-    const fetchRecords = async () => {
-        setLoading(true);
-        try {
-            const year = currentDate.getFullYear();
-            const month = currentDate.getMonth() + 1;
-
+    // 👇 USAR REACT QUERY CON LA MISMA QUERY KEY QUE INVALIDAMOS
+    const { data: records = [], isLoading: loading, refetch: fetchRecords } = useQuery({
+        queryKey: ['admin-attendance-history', year, month, isOwnAttendance],
+        queryFn: async () => {
             const params = new URLSearchParams({
                 year: year.toString(),
                 month: month.toString(),
@@ -102,32 +83,45 @@ export function AdminAttendanceHistory({ isOwnAttendance }: AdminAttendanceHisto
             });
 
             const response = await fetch(`/api/admin/attendance?${params}`);
+            if (!response.ok) throw new Error('Error al cargar historial');
+            const data = await response.json();
+            return data.records || [];
+        },
+        staleTime: 30_000,
+    });
+
+    // 👇 Fetch de usuarios (sin cambios, solo se necesita para admin no propio)
+    const { data: users = [] } = useQuery({
+        queryKey: ['admin-users'],
+        queryFn: async () => {
+            const response = await fetch('/api/admin/users?active=true');
             if (response.ok) {
                 const data = await response.json();
-                setRecords(data.records || []);
+                return data.users || [];
             }
-        } catch (error) {
-            console.error('Error al cargar historial:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
+            return [];
+        },
+        enabled: !isOwnAttendance, // Solo ejecutar si no es asistencia propia
+        staleTime: 5 * 60 * 1000, // 5 minutos de caché
+    });
 
     const handleEditSave = async (data: any) => {
-        await fetchRecords();
+        // 👇 Invalidar para refrescar después de editar
+        queryClient.invalidateQueries({ queryKey: ['admin-attendance-history'] });
     };
 
     const handleCreateRecord = async (data: any) => {
-        await fetchRecords();
+        // 👇 Invalidar para refrescar después de crear
+        queryClient.invalidateQueries({ queryKey: ['admin-attendance-history'] });
     };
 
     const handleExportCSV = () => {
-        const csvData = records.flatMap(day =>
-            day.records.map(record => ({
+        const csvData = records.flatMap((day: DayRecord) =>
+            day.records.map((record: AttendanceRecord) => ({
                 Fecha: day.date,
                 Usuario: record.user_name,
                 Tipo: getTypeLabel(record.type),
-                Hora: formatTime(record.timestamp), // ✅ date-fns
+                Hora: formatTime(record.timestamp),
                 Manual: record.is_manual ? 'Sí' : 'No',
                 Notas: record.notes || '',
             }))
@@ -135,16 +129,18 @@ export function AdminAttendanceHistory({ isOwnAttendance }: AdminAttendanceHisto
 
         if (csvData.length === 0) return;
 
+        // Tipar correctamente los valores
+        const headers = Object.keys(csvData[0]);
         const csv = [
-            Object.keys(csvData[0]).join(','),
-            ...csvData.map(row => Object.values(row).join(','))
+            headers.join(','),
+            ...csvData.map((row: Record<string, string>) => headers.map(header => row[header]).join(','))
         ].join('\n');
 
         const blob = new Blob([csv], { type: 'text/csv' });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `asistencia_${currentDate.getFullYear()}_${currentDate.getMonth() + 1}.csv`;
+        a.download = `asistencia_${year}_${month}.csv`;
         a.click();
     };
 
@@ -191,6 +187,14 @@ export function AdminAttendanceHistory({ isOwnAttendance }: AdminAttendanceHisto
         return colors[type] || '';
     };
 
+    // Filtrar registros por tipo
+    const filteredRecords = typeFilter === 'all'
+        ? records
+        : records.map((day: DayRecord) => ({
+            ...day,
+            records: day.records.filter(r => r.type === typeFilter)
+        })).filter((day: DayRecord) => day.records.length > 0);
+
     return (
         <>
             <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
@@ -217,7 +221,7 @@ export function AdminAttendanceHistory({ isOwnAttendance }: AdminAttendanceHisto
                             <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800">
                                 <Calendar className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                                 <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                                    {formatMonthYear(currentDate)} {/* ✅ date-fns */}
+                                    {formatMonthYear(currentDate)}
                                 </span>
                             </div>
 
@@ -258,26 +262,26 @@ export function AdminAttendanceHistory({ isOwnAttendance }: AdminAttendanceHisto
                                 <div key={i} className="animate-pulse"><div className="h-20 bg-slate-100 dark:bg-slate-800 rounded-xl" /></div>
                             ))}
                         </div>
-                    ) : records.length === 0 ? (
+                    ) : filteredRecords.length === 0 ? (
                         <div className="text-center py-12">
                             <Calendar className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
                             <p className="text-slate-500 dark:text-slate-400">No hay registros este mes</p>
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            {records.map((day) => (
+                            {filteredRecords.map((day: DayRecord) => (
                                 <div key={day.date} className="history-row bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                                     <div className="flex items-center justify-between mb-3">
                                         <div>
                                             <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                                                {formatDate(day.date)} {/* ✅ date-fns */}
+                                                {formatDate(day.date)}
                                             </p>
                                         </div>
                                         {day.hoursWorked !== null && (
                                             <div className="text-right">
                                                 <p className="text-xs text-slate-500 dark:text-slate-400">Horas trabajadas</p>
                                                 <p className="text-sm font-bold text-slate-900 dark:text-white">
-                                                    {formatHoursWorked(day.hoursWorked)} {/* ✅ date-fns */}
+                                                    {formatHoursWorked(day.hoursWorked)}
                                                 </p>
                                             </div>
                                         )}
@@ -296,7 +300,7 @@ export function AdminAttendanceHistory({ isOwnAttendance }: AdminAttendanceHisto
                                                 )}
 
                                                 <span className="font-mono text-slate-900 dark:text-white">
-                                                    {formatTime(record.timestamp)} {/* ✅ date-fns */}
+                                                    {formatTime(record.timestamp)}
                                                 </span>
 
                                                 {record.is_manual && (
