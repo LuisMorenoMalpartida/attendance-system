@@ -10,8 +10,10 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
-    const year = searchParams.get('year') || new Date().getFullYear().toString();
-    const month = searchParams.get('month') || (new Date().getMonth() + 1).toString();
+    const yearStr = searchParams.get('year') || new Date().getFullYear().toString();
+    const monthStr = searchParams.get('month') || (new Date().getMonth() + 1).toString();
+    const year = parseInt(yearStr, 10);
+    const month = parseInt(monthStr, 10);
 
     const result = await db.query(
       `SELECT 
@@ -53,8 +55,8 @@ export async function GET(req: NextRequest) {
 
       if (checkIn && checkOut) {
         const diff =
-          new Date(checkOut.timestamp).getTime() -
-          new Date(checkIn.timestamp).getTime();
+          parseLocalDate(checkOut.timestamp).getTime() -
+          parseLocalDate(checkIn.timestamp).getTime();
 
         const lunchOut = day.records.find((r: any) => r.type === 'lunch_out');
         const lunchIn = day.records.find((r: any) => r.type === 'lunch_in');
@@ -62,8 +64,8 @@ export async function GET(req: NextRequest) {
         let lunchTime = 0;
         if (lunchOut && lunchIn) {
           lunchTime =
-            new Date(lunchIn.timestamp).getTime() -
-            new Date(lunchOut.timestamp).getTime();
+            parseLocalDate(lunchIn.timestamp).getTime() -
+            parseLocalDate(lunchOut.timestamp).getTime();
         }
 
         day.hoursWorked = (diff - lunchTime) / (1000 * 60 * 60);
@@ -104,4 +106,23 @@ function normalizeTimestamp(timestamp: string): string {
   } catch {
     return timestamp;
   }
+}
+
+// Parsea un timestamp SIN zona horaria como hora LOCAL
+function parseLocalDate(dateStr: string): Date {
+  if (!dateStr) return new Date(NaN);
+
+  let s = String(dateStr).trim();
+  s = s.replace(' ', 'T');
+  s = s.split('.')[0].replace(/([+-]\d{2}:?\d{2}|Z)$/, '');
+
+  const [datePart, timePart] = s.split('T');
+  const [year, month, day] = (datePart || '').split('-').map(Number);
+
+  if (timePart) {
+    const [hours, minutes, seconds] = (timePart || '').split(':').map(Number);
+    return new Date(year, (month || 1) - 1, day || 1, hours || 0, minutes || 0, seconds || 0);
+  }
+
+  return new Date(year, (month || 1) - 1, day || 1, 12, 0, 0);
 }

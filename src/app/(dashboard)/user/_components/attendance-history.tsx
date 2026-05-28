@@ -88,8 +88,8 @@ export function AttendanceHistory() {
         body: JSON.stringify({ notes: noteText }) 
       });
       setEditingNote(null); 
-      // 👇 INVALIDAR PARA REFRESCAR
-      queryClient.invalidateQueries({ queryKey: ['attendance-history'] });
+      // 👇 INVALIDAR PARA REFRESCAR (mes/año actuales)
+      queryClient.invalidateQueries({ queryKey: ['attendance-history', year, month] });
     } catch (error) { 
       console.error('Error al guardar nota:', error); 
     }
