@@ -33,6 +33,33 @@ export function getPeruToday(): string {
 }
 
 /**
+ * Formatea un objeto Date a YYYY-MM-DD en zona horaria Perú
+ */
+export function formatDateToPeruYYYYMMDD(d: Date): string {
+  const peruString = d.toLocaleString('en-US', { timeZone: PERU_TIMEZONE });
+  const peruDate = new Date(peruString);
+  const year = peruDate.getFullYear();
+  const month = String(peruDate.getMonth() + 1).padStart(2, '0');
+  const day = String(peruDate.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Formatea un objeto Date a YYYY-MM-DDTHH:MM:SS en zona horaria Perú
+ */
+export function formatDateToPeruTimestamp(d: Date): string {
+  const peruString = d.toLocaleString('en-US', { timeZone: PERU_TIMEZONE });
+  const peruDate = new Date(peruString);
+  const year = peruDate.getFullYear();
+  const month = String(peruDate.getMonth() + 1).padStart(2, '0');
+  const day = String(peruDate.getDate()).padStart(2, '0');
+  const hours = String(peruDate.getHours()).padStart(2, '0');
+  const minutes = String(peruDate.getMinutes()).padStart(2, '0');
+  const seconds = String(peruDate.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+}
+
+/**
  * Convierte un timestamp ISO (UTC) a hora Perú sin timezone
  */
 export function toPeruTimestamp(isoTimestamp: string): string {

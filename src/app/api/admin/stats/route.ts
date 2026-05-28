@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyAuth } from '@/lib/auth';
+import { getPeruToday } from '@/lib/date-utils';
 
 export async function GET(req: NextRequest) {
   try {
@@ -11,7 +12,7 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const own = searchParams.get('own');
-    const today = new Date().toISOString().split('T')[0];
+    const today = getPeruToday();
 
     if (own === 'true') {
       // Estadísticas personales del admin

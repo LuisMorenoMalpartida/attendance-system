@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/select';
 import { EditAttendanceModal } from './edit-attendance-modal';
 import { LocationViewer } from './location-viewer';
+import { formatDateToPeruYYYYMMDD } from '@/lib/date-utils';
 import ExcelJS from 'exceljs';
 
 interface CalendarDay {
@@ -188,8 +189,8 @@ export function AttendanceCalendarView() {
         const startingDayOfWeek = firstDay.getDay();
         const lastDay = new Date(year, month + 1, 0);
         const daysInMonth = lastDay.getDate();
-        const today = new Date();
-        const todayStr = today.toISOString().split('T')[0];
+            const today = new Date();
+        const todayStr = formatDateToPeruYYYYMMDD(today);
         const days: CalendarDay[] = [];
 
         for (let i = startingDayOfWeek - 1; i >= 0; i--) {
@@ -210,7 +211,7 @@ export function AttendanceCalendarView() {
     };
 
     const createDayObjectForAll = (date: Date, isCurrentMonth: boolean, allRecords: any[], todayStr: string): CalendarDay => {
-        const dateStr = date.toISOString().split('T')[0];
+        const dateStr = formatDateToPeruYYYYMMDD(date);
         const dayOfWeek = date.getDay();
         const isSaturday = dayOfWeek === 6;
         const isSunday = dayOfWeek === 0;
@@ -274,7 +275,7 @@ export function AttendanceCalendarView() {
         const lastDay = new Date(year, month + 1, 0);
         const daysInMonth = lastDay.getDate();
         const today = new Date();
-        const todayStr = today.toISOString().split('T')[0];
+        const todayStr = formatDateToPeruYYYYMMDD(today);
         const days: CalendarDay[] = [];
 
         for (let i = startingDayOfWeek - 1; i >= 0; i--) {
@@ -295,7 +296,7 @@ export function AttendanceCalendarView() {
     };
 
     const createDayObject = (date: Date, isCurrentMonth: boolean, records: any[], todayStr: string): CalendarDay => {
-        const dateStr = date.toISOString().split('T')[0];
+        const dateStr = formatDateToPeruYYYYMMDD(date);
         const dayData = records.find((r: any) => r.date === dateStr);
         const dayRecords = dayData?.records || [];
         const dayOfWeek = date.getDay();

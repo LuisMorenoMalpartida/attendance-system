@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getPeruToday, toPeruTimestamp } from '@/lib/date-utils';
 import { verifyAuth } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
@@ -41,7 +42,7 @@ export async function GET(req: NextRequest) {
             AND DATE(ar.timestamp::timestamp) = $1
           WHERE u.is_active = true
         `;
-        params = [startDate || new Date().toISOString().split('T')[0]];
+        params = [startDate || getPeruToday()];
         break;
       // ... otros períodos
     }
@@ -83,8 +84,8 @@ function calculateAverageCheckIn(rows: any[]) {
     return null;
   }
 
-  const totalMinutes = validCheckIns.reduce((acc, timestamp) => {
-    const date = new Date(timestamp);
+    const totalMinutes = validCheckIns.reduce((acc, timestamp) => {
+    const date = new Date(toPeruTimestamp(timestamp));
 
     return acc + date.getHours() * 60 + date.getMinutes();
   }, 0);
@@ -107,12 +108,12 @@ function calculateAverageCheckIn(rows: any[]) {
 function countLateArrivals(rows: any[]) {
   const LATE_HOUR = 9;
 
-  return rows.filter((r) => {
+    return rows.filter((r) => {
     if (!r.first_check_in) {
       return false;
     }
 
-    const checkIn = new Date(r.first_check_in);
+    const checkIn = new Date(toPeruTimestamp(r.first_check_in));
 
     return checkIn.getHours() >= LATE_HOUR;
   }).length;

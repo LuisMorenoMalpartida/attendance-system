@@ -22,6 +22,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { AlertCircle, CheckCircle2, Clock, Edit3, Save } from 'lucide-react';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
+import { toPeruTimestamp } from '@/lib/date-utils';
 
 interface EditAttendanceModalProps {
   isOpen: boolean;
@@ -40,7 +41,7 @@ interface EditAttendanceModalProps {
 export function EditAttendanceModal({ isOpen, onClose, record, onSave }: EditAttendanceModalProps) {
   const [formData, setFormData] = useState({
     type: record?.type || 'check_in',
-    timestamp: record?.timestamp ? new Date(record.timestamp).toISOString().slice(0, 16) : '',
+    timestamp: record?.timestamp ? toPeruTimestamp(record.timestamp).slice(0, 16) : '',
     notes: record?.notes || '',
   });
   const [loading, setLoading] = useState(false);
@@ -67,7 +68,8 @@ export function EditAttendanceModal({ isOpen, onClose, record, onSave }: EditAtt
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: formData.type,
-          timestamp: new Date(formData.timestamp).toISOString(),
+          // Enviar como naive Peru timestamp
+          timestamp: formData.timestamp.length === 16 ? `${formData.timestamp}:00` : formData.timestamp,
           notes: formData.notes,
           is_manual: true,
         }),

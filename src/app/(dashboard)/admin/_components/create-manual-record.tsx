@@ -22,6 +22,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { AlertCircle, Plus, Save, User } from 'lucide-react';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
+import { getPeruNowTimestamp } from '@/lib/date-utils';
 
 interface CreateManualRecordProps {
     isOpen: boolean;
@@ -53,7 +54,7 @@ export function CreateManualRecord({
     const [formData, setFormData] = useState<FormData>({
         userId: '',
         type: 'check_in',
-        timestamp: new Date().toISOString().slice(0, 16),
+        timestamp: getPeruNowTimestamp().slice(0, 16),
         notes: '',
         latitude: '',
         longitude: '',
@@ -128,7 +129,9 @@ export function CreateManualRecord({
             const payload = {
                 user_id: Number(formData.userId),
                 type: formData.type,
-                timestamp: new Date(formData.timestamp).toISOString(),
+                // El input `datetime-local` devuelve una hora sin zona.
+                // Enviamos la cadena como 'YYYY-MM-DDTHH:MM:SS' (naive, hora local/Perú)
+                timestamp: formData.timestamp.length === 16 ? `${formData.timestamp}:00` : formData.timestamp,
                 notes: formData.notes.trim(),
                 latitude: formData.latitude
                     ? parseFloat(formData.latitude)
