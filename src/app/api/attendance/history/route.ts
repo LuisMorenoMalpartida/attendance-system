@@ -27,10 +27,10 @@ export async function GET(req: NextRequest) {
       [user.userId, year, month]
     );
 
-    // 👇 Normalizar timestamps: quitar la Z y convertir a hora local
+    // No modificar el timestamp almacenado (es `text`) — devolver tal cual.
     const normalizedRows = result.rows.map((row: any) => ({
       ...row,
-      timestamp: normalizeTimestamp(row.timestamp),
+      timestamp: String(row.timestamp),
     }));
 
     // Agrupar por fecha
@@ -54,18 +54,15 @@ export async function GET(req: NextRequest) {
       const checkOut = day.records.find((r: any) => r.type === 'check_out');
 
       if (checkIn && checkOut) {
-        const diff =
-          parseLocalDate(checkOut.timestamp).getTime() -
-          parseLocalDate(checkIn.timestamp).getTime();
+        // Usar parseLocalDate sólo para cálculo de diferencias, sin modificar el string devuelto
+        const diff = parseLocalDate(checkOut.timestamp).getTime() - parseLocalDate(checkIn.timestamp).getTime();
 
         const lunchOut = day.records.find((r: any) => r.type === 'lunch_out');
         const lunchIn = day.records.find((r: any) => r.type === 'lunch_in');
 
         let lunchTime = 0;
         if (lunchOut && lunchIn) {
-          lunchTime =
-            parseLocalDate(lunchIn.timestamp).getTime() -
-            parseLocalDate(lunchOut.timestamp).getTime();
+          lunchTime = parseLocalDate(lunchIn.timestamp).getTime() - parseLocalDate(lunchOut.timestamp).getTime();
         }
 
         day.hoursWorked = (diff - lunchTime) / (1000 * 60 * 60);
@@ -84,29 +81,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// 👇 Función para normalizar timestamp (quitar UTC y dejar hora local)
-function normalizeTimestamp(timestamp: string): string {
-  try {
-    const date = new Date(timestamp);
-    // Si la fecha es inválida, devolver el original
-    if (isNaN(date.getTime())) return timestamp;
-    
-    // Convertir a hora Perú y devolver sin timezone
-    const peruString = date.toLocaleString('en-US', { timeZone: 'America/Lima' });
-    const peruDate = new Date(peruString);
-    
-    const year = peruDate.getFullYear();
-    const month = String(peruDate.getMonth() + 1).padStart(2, '0');
-    const day = String(peruDate.getDate()).padStart(2, '0');
-    const hours = String(peruDate.getHours()).padStart(2, '0');
-    const minutes = String(peruDate.getMinutes()).padStart(2, '0');
-    const seconds = String(peruDate.getSeconds()).padStart(2, '0');
-    
-    return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
-  } catch {
-    return timestamp;
-  }
-}
+// Nota: no normalizamos el string de timestamp — se devuelve tal cual desde la base de datos.
 
 // Parsea un timestamp SIN zona horaria como hora LOCAL
 function parseLocalDate(dateStr: string): Date {
