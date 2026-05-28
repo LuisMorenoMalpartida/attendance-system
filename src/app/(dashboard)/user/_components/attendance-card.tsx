@@ -66,7 +66,7 @@ export function AttendanceCard() {
 
   const fetchLastRecord = async () => {
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getPeruNowTimestamp().split('T')[0];
       const response = await fetch(`/api/attendance?date=${today}`);
       if (response.ok) {
         const data = await response.json();
@@ -95,19 +95,8 @@ export function AttendanceCard() {
       // 👇 Obtener ubicación fresca
       const currentLocation = await getCurrentLocation();
 
-      // 👉 Construir timestamp local del dispositivo (YYYY-MM-DD HH:MM:SS)
-      const getDeviceLocalTimestampString = () => {
-        const d = new Date();
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        const hh = String(d.getHours()).padStart(2, '0');
-        const mm = String(d.getMinutes()).padStart(2, '0');
-        const ss = String(d.getSeconds()).padStart(2, '0');
-        return `${y}-${m}-${day} ${hh}:${mm}:${ss}`;
-      };
-
-      const deviceTimestamp = getDeviceLocalTimestampString();
+      // 👉 Usar timestamp normalizado a hora Perú con 'T' (YYYY-MM-DDTHH:MM:SS)
+      const deviceTimestamp = getPeruNowTimestamp();
 
       const response = await fetch('/api/attendance', {
         method: 'POST',
