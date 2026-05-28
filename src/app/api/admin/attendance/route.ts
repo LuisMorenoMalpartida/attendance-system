@@ -19,21 +19,53 @@ function getPeruNowTimestamp(): string {
   return `${y}-${m}-${d}T${h}:${min}:${s}`;
 }
 
-function toPeruTime(timestamp: string): Date {
-  const date = new Date(timestamp);
-  const peruString = date.toLocaleString('en-US', { timeZone: 'America/Lima' });
-  return new Date(peruString);
+function formatPeruTimestamp(timestamp: string): string {
+  try {
+    // Si tiene zona (Z o +HH:MM), convertir el instante a hora Perú
+    if (timestamp.includes('Z') || timestamp.match(/[+-]\d{2}:?\d{2}/)) {
+      const date = new Date(timestamp);
+      if (isNaN(date.getTime())) return timestamp;
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Lima',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false,
+      }).formatToParts(date);
+
+      const map: Record<string, string> = {};
+      for (const p of parts) {
+        if (p.type !== 'literal') map[p.type] = p.value;
+      }
+
+      return `${map.year}-${map.month}-${map.day}T${map.hour}:${map.minute}:${map.second}`;
+    }
+
+    // Si no tiene zona, tratar como hora local (naive)
+    const naive = String(timestamp).split('.')[0];
+    const hasSeconds = /T\d{2}:\d{2}:\d{2}$/.test(naive) || /\d{2}:\d{2}:\d{2}$/.test(naive);
+    if (hasSeconds) return naive.replace(' ', 'T');
+    const hasMinutes = /T\d{2}:\d{2}$/.test(naive) || /\d{2}:\d{2}$/.test(naive);
+    if (hasMinutes) return naive.replace(' ', 'T') + ':00';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(naive)) return `${naive}T12:00:00`;
+    return naive.replace(' ', 'T');
+  } catch {
+    return timestamp;
+  }
 }
 
-function formatPeruTimestamp(timestamp: string): string {
-  const peru = toPeruTime(timestamp);
-  const y = peru.getFullYear();
-  const m = String(peru.getMonth() + 1).padStart(2, '0');
-  const d = String(peru.getDate()).padStart(2, '0');
-  const h = String(peru.getHours()).padStart(2, '0');
-  const min = String(peru.getMinutes()).padStart(2, '0');
-  const s = String(peru.getSeconds()).padStart(2, '0');
-  return `${y}-${m}-${d}T${h}:${min}:${s}`;
+/**
+ * Parsea un timestamp en formato `YYYY-MM-DDTHH:MM:SS` o con espacio
+ * y lo interpreta como hora local (no como UTC).
+ */
+function parseLocalTimestamp(ts: string): Date {
+  const s = ts.replace('T', ' ').split('.')[0];
+  const [datePart, timePart] = s.split(' ');
+  const [year, month, day] = datePart.split('-').map(Number);
+  if (timePart) {
+    const [hour, minute, second] = timePart.split(':').map(Number);
+    return new Date(year, (month || 1) - 1, day || 1, hour || 0, minute || 0, second || 0);
+  }
+  return new Date(year, (month || 1) - 1, day || 1, 12, 0, 0);
 }
 
 async function validateFlow(userId: number, type: string, date: string) {
@@ -128,15 +160,15 @@ export async function GET(req: NextRequest) {
       const checkOut = day.records.find((r: any) => r.type === 'check_out');
       
       if (checkIn && checkOut) {
-        const diff = new Date(checkOut.timestamp).getTime() - new Date(checkIn.timestamp).getTime();
-        
+        const diff = parseLocalTimestamp(checkOut.timestamp).getTime() - parseLocalTimestamp(checkIn.timestamp).getTime();
+
         const lunchOut = day.records.find((r: any) => r.type === 'lunch_out');
         const lunchIn = day.records.find((r: any) => r.type === 'lunch_in');
         let lunchTime = 0;
         if (lunchOut && lunchIn) {
-          lunchTime = new Date(lunchIn.timestamp).getTime() - new Date(lunchOut.timestamp).getTime();
+          lunchTime = parseLocalTimestamp(lunchIn.timestamp).getTime() - parseLocalTimestamp(lunchOut.timestamp).getTime();
         }
-        
+
         day.hoursWorked = (diff - lunchTime) / (1000 * 60 * 60);
       }
       return day;
