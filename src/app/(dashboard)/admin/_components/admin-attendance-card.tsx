@@ -38,6 +38,9 @@ export function AdminAttendanceCard() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  const isSaturday = new Date().getDay() === 6;
+  const isSunday = new Date().getDay() === 0;
+
   useEffect(() => {
     getCurrentLocation();
   }, []);
@@ -97,14 +100,15 @@ export function AdminAttendanceCard() {
   }, []);
 
   const handleAttendanceRecord = async (type: AttendanceType) => {
+    // Reset estados
+    setError(null);
+    setSuccess(null);
+    setLoading(type);
+
+    const currentLocation = await getCurrentLocation();
+    const deviceTimestamp = getPeruNowTimestamp();
+
     try {
-      setLoading(type);
-      setError(null);
-      setSuccess(null);
-
-      const currentLocation = await getCurrentLocation();
-      const deviceTimestamp = getPeruNowTimestamp();
-
       await mutation.mutateAsync({
         type,
         latitude: currentLocation?.latitude ?? null,
@@ -113,6 +117,7 @@ export function AdminAttendanceCard() {
         timestamp: deviceTimestamp,
       });
 
+      // Si llega aquí, fue exitoso
       setSuccess(`¡${getTypeLabel(type)} registrado exitosamente!`);
       setLastRecord({ type, timestamp: deviceTimestamp });
 
@@ -122,13 +127,8 @@ export function AdminAttendanceCard() {
       );
 
       setTimeout(() => setSuccess(null), 3000);
-    } catch (err: any) {
-      setError(err.message);
-      gsap.fromTo('.error-message',
-        { x: -10, opacity: 0 },
-        { x: 0, opacity: 1, duration: 0.3, ease: 'power2.out' }
-      );
-      setTimeout(() => setError(null), 5000);
+    } catch (err) {
+      // El error ya se maneja en onError del mutation
     } finally {
       setLoading(null);
     }
@@ -141,8 +141,26 @@ export function AdminAttendanceCard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Error al registrar');
+
+      // Lee como texto primero para evitar "unexpected end of JSON input"
+      const text = await res.text();
+
+      if (!text || text.trim() === '') {
+        throw new Error('El servidor devolvió una respuesta vacía');
+      }
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        console.error('❌ Respuesta no es JSON:', text);
+        throw new Error(`Error inesperado del servidor (${res.status})`);
+      }
+
+      if (!res.ok) {
+        throw new Error(data.error || `Error ${res.status} al registrar`);
+      }
+
       return data;
     },
     onMutate: async (newRecord: MutationPayload) => {
@@ -159,15 +177,19 @@ export function AdminAttendanceCard() {
       return { previous };
     },
     onError: (err: unknown, newRecord: MutationPayload, context: any) => {
+      console.error('Error en mutación:', err);
+      // Mostrar error en la UI
+      setError(err instanceof Error ? err.message : 'Error al registrar');
+      // Rollback
       if (context?.previous) {
         queryClient.setQueryData(['attendance', today], context.previous);
       }
+      setTimeout(() => setError(null), 5000);
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['attendance', today] });
-      // 👇 INVALIDA EL HISTORIAL DE ADMIN PARA QUE SE ACTUALICE AUTOMÁTICAMENTE
       queryClient.invalidateQueries({ queryKey: ['admin-attendance-history'] });
-    }
+    },
   });
 
   // SSE subscription to update admin card in real-time
@@ -180,15 +202,15 @@ export function AdminAttendanceCard() {
           queryClient.invalidateQueries({ queryKey: ['attendance', today] });
           // 👇 También actualizar historial admin cuando llegue evento SSE
           queryClient.invalidateQueries({ queryKey: ['admin-attendance-history'] });
-        } catch {}
+        } catch { }
       };
       es.addEventListener('attendance', onAttendance as EventListener);
       es.onerror = () => es.close();
-      return () => { 
-        es.removeEventListener('attendance', onAttendance as EventListener); 
-        es.close(); 
+      return () => {
+        es.removeEventListener('attendance', onAttendance as EventListener);
+        es.close();
       };
-    } catch {}
+    } catch { }
   }, [today, queryClient]);
 
   const getTypeLabel = (type: AttendanceType): string => {
@@ -235,7 +257,7 @@ export function AdminAttendanceCard() {
               </span>
             </div>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              Horario: 08:00 - 17:45
+              Horario: Lun-Vie 08:00 - 17:45 | Sáb 09:00 - 12:00
             </p>
           </div>
 
@@ -284,8 +306,8 @@ export function AdminAttendanceCard() {
         )}
 
         <div className="grid grid-cols-2 gap-3">
-          <button 
-            onClick={() => handleAttendanceRecord('check_in')} 
+          <button
+            onClick={() => handleAttendanceRecord('check_in')}
             disabled={isButtonDisabled('check_in')}
             className={`attendance-action relative overflow-hidden p-4 rounded-xl font-medium text-white transition-all duration-300 bg-linear-to-r from-blue-500 to-blue-600 ${isButtonDisabled('check_in') ? 'opacity-50 cursor-not-allowed' : 'hover:from-blue-600 hover:to-blue-700'}`}
           >
@@ -299,10 +321,12 @@ export function AdminAttendanceCard() {
             </div>
           </button>
 
-          <button 
-            onClick={() => handleAttendanceRecord('lunch_out')} 
-            disabled={isButtonDisabled('lunch_out')}
-            className={`attendance-action relative overflow-hidden p-4 rounded-xl font-medium text-white transition-all duration-300 bg-linear-to-r from-orange-500 to-orange-600 ${isButtonDisabled('lunch_out') ? 'opacity-50 cursor-not-allowed' : 'hover:from-orange-600 hover:to-orange-700'}`}
+          {/* Botón Salida Comida */}
+          <button
+            onClick={() => handleAttendanceRecord('lunch_out')}
+            disabled={isButtonDisabled('lunch_out') || isSaturday || isSunday}
+            className={`attendance-action relative overflow-hidden p-4 rounded-xl font-medium text-white transition-all duration-300 bg-gradient-to-r from-orange-500 to-orange-600 ${isButtonDisabled('lunch_out') || isSaturday || isSunday ? 'opacity-50 cursor-not-allowed' : 'hover:from-orange-600 hover:to-orange-700'
+              }`}
           >
             <div className="relative z-10 flex items-center justify-center gap-2">
               {loading === 'lunch_out' ? (
@@ -311,13 +335,16 @@ export function AdminAttendanceCard() {
                 <Coffee className="w-5 h-5" />
               )}
               <span>Salida Comida</span>
+              {isSaturday && <span className="text-xs opacity-75">(No disponible sábados)</span>}
             </div>
           </button>
 
-          <button 
-            onClick={() => handleAttendanceRecord('lunch_in')} 
-            disabled={isButtonDisabled('lunch_in')}
-            className={`attendance-action relative overflow-hidden p-4 rounded-xl font-medium text-white transition-all duration-300 bg-linear-to-r from-green-500 to-green-600 ${isButtonDisabled('lunch_in') ? 'opacity-50 cursor-not-allowed' : 'hover:from-green-600 hover:to-green-700'}`}
+          {/* Botón Regreso Comida */}
+          <button
+            onClick={() => handleAttendanceRecord('lunch_in')}
+            disabled={isButtonDisabled('lunch_in') || isSaturday || isSunday}
+            className={`attendance-action relative overflow-hidden p-4 rounded-xl font-medium text-white transition-all duration-300 bg-gradient-to-r from-green-500 to-green-600 ${isButtonDisabled('lunch_in') || isSaturday || isSunday ? 'opacity-50 cursor-not-allowed' : 'hover:from-green-600 hover:to-green-700'
+              }`}
           >
             <div className="relative z-10 flex items-center justify-center gap-2">
               {loading === 'lunch_in' ? (
@@ -326,11 +353,12 @@ export function AdminAttendanceCard() {
                 <Coffee className="w-5 h-5" />
               )}
               <span>Regreso Comida</span>
+              {isSaturday && <span className="text-xs opacity-75">(No disponible sábados)</span>}
             </div>
           </button>
 
-          <button 
-            onClick={() => handleAttendanceRecord('check_out')} 
+          <button
+            onClick={() => handleAttendanceRecord('check_out')}
             disabled={isButtonDisabled('check_out')}
             className={`attendance-action relative overflow-hidden p-4 rounded-xl font-medium text-white transition-all duration-300 bg-linear-to-r from-red-500 to-red-600 ${isButtonDisabled('check_out') ? 'opacity-50 cursor-not-allowed' : 'hover:from-red-600 hover:to-red-700'}`}
           >

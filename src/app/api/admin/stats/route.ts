@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyAuth } from '@/lib/auth';
-import { getPeruToday } from '@/lib/date-utils';
+
+function getPeruToday(): string {
+  const now = new Date();
+  const peruString = now.toLocaleString('en-US', { timeZone: 'America/Lima' });
+  const peruDate = new Date(peruString);
+  const y = peruDate.getFullYear();
+  const m = String(peruDate.getMonth() + 1).padStart(2, '0');
+  const d = String(peruDate.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -46,9 +55,20 @@ export async function GET(req: NextRequest) {
       db.query(`
         SELECT 
           COUNT(DISTINCT CASE WHEN DATE(timestamp::timestamp) = $1 THEN user_id END) as present_today,
-          COUNT(DISTINCT CASE WHEN type = 'check_in' AND DATE(timestamp::timestamp) = $1 
-            AND EXTRACT(HOUR FROM timestamp::timestamp) >= 8 AND EXTRACT(MINUTE FROM timestamp::timestamp) > 15 
-            THEN user_id END) as late_arrivals
+          COUNT(DISTINCT CASE 
+            -- Sábados: tarde después de 09:15
+            WHEN type = 'check_in' AND DATE(timestamp::timestamp) = $1
+              AND EXTRACT(DOW FROM timestamp::timestamp) = 6
+              AND (EXTRACT(HOUR FROM timestamp::timestamp) > 9 
+                OR (EXTRACT(HOUR FROM timestamp::timestamp) = 9 AND EXTRACT(MINUTE FROM timestamp::timestamp) > 15))
+            THEN user_id
+            -- Lunes-Viernes: tarde después de 08:15
+            WHEN type = 'check_in' AND DATE(timestamp::timestamp) = $1
+              AND EXTRACT(DOW FROM timestamp::timestamp) IN (1,2,3,4,5)
+              AND (EXTRACT(HOUR FROM timestamp::timestamp) > 8 
+                OR (EXTRACT(HOUR FROM timestamp::timestamp) = 8 AND EXTRACT(MINUTE FROM timestamp::timestamp) > 15))
+            THEN user_id
+          END) as late_arrivals
         FROM attendance_records
       `, [today]),
       db.query('SELECT COUNT(*) as total FROM companies'),

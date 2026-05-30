@@ -21,8 +21,6 @@ function getPeruNowTimestamp(): string {
 
 function formatPeruTimestamp(timestamp: string): string {
   try {
-    // Si el timestamp incluye zona (Z o +HH:MM), interpretarlo como instante UTC/offset
-    // y convertir al horario de Perú.
     if (timestamp.includes('Z') || timestamp.match(/[+-]\d{2}:?\d{2}/)) {
       const date = new Date(timestamp);
       if (isNaN(date.getTime())) return timestamp;
@@ -38,26 +36,14 @@ function formatPeruTimestamp(timestamp: string): string {
         if (p.type !== 'literal') map[p.type] = p.value;
       }
 
-      const y = map.year;
-      const m = map.month;
-      const d = map.day;
-      const h = map.hour;
-      const min = map.minute;
-      const s = map.second;
-      return `${y}-${m}-${d}T${h}:${min}:${s}`;
+      return `${map.year}-${map.month}-${map.day}T${map.hour}:${map.minute}:${map.second}`;
     }
 
-    // Si no incluye zona horaria, el valor guardado en la DB es 'naive' (hora local).
-    // En ese caso debemos tratar la cadena tal cual como hora local (sin convertirla),
-    // para no restar la diferencia UTC-5.
-    // Normalizar eliminando posibles milisegundos y zona imaginaria.
     const naive = String(timestamp).split('.')[0];
-    // Asegurar que tenga segundos: "YYYY-MM-DDTHH:MM" -> añadir :00
     const hasSeconds = /T\d{2}:\d{2}:\d{2}$/.test(naive);
     if (hasSeconds) return naive;
     const hasMinutes = /T\d{2}:\d{2}$/.test(naive);
     if (hasMinutes) return `${naive}:00`;
-    // Si solo fecha
     if (/^\d{4}-\d{2}-\d{2}$/.test(naive)) return `${naive}T12:00:00`;
     return naive;
   } catch {
@@ -69,7 +55,19 @@ function getPeruToday(): string {
   return getPeruNowTimestamp().split('T')[0];
 }
 
+// ============================================================
+// VALIDACIÓN DE FLUJO (CON SOPORTE PARA SÁBADOS)
+// ============================================================
 async function validateFlow(userId: number, type: string, date: string) {
+  const dayOfWeek = new Date(date + 'T12:00:00').getDay(); // 0=Dom, 6=Sáb
+  const isSaturday = dayOfWeek === 6;
+  const isSunday = dayOfWeek === 0;
+
+  // Domingo no se trabaja
+  if (isSunday) {
+    return { valid: false, message: 'Domingo no es día laborable' };
+  }
+
   const records = await db.query(
     `SELECT type FROM attendance_records 
      WHERE user_id = $1 AND DATE(timestamp::timestamp) = $2 
@@ -78,23 +76,67 @@ async function validateFlow(userId: number, type: string, date: string) {
   );
   const types = records.rows.map((r: any) => r.type);
 
+  // Sábado: solo entrada y salida (sin comida)
+  if (isSaturday) {
+    switch (type) {
+      case 'check_in':
+        if (types.includes('check_in')) {
+          return { valid: false, message: 'Ya registraste tu entrada hoy' };
+        }
+        break;
+      case 'check_out':
+        if (!types.includes('check_in')) {
+          return { valid: false, message: 'Debes registrar tu entrada primero' };
+        }
+        if (types.includes('check_out')) {
+          return { valid: false, message: 'Ya registraste tu salida hoy' };
+        }
+        break;
+      case 'lunch_out':
+      case 'lunch_in':
+        return { valid: false, message: 'Los sábados no tienen horario de comida' };
+      default:
+        return { valid: false, message: 'Tipo de registro no válido' };
+    }
+    return { valid: true, message: 'OK' };
+  }
+
+  // Lunes a Viernes: flujo normal con comida
   switch (type) {
     case 'check_in':
-      if (types.includes('check_in')) return { valid: false, message: 'Ya registraste tu entrada hoy' };
+      if (types.includes('check_in')) {
+        return { valid: false, message: 'Ya registraste tu entrada hoy' };
+      }
       break;
     case 'lunch_out':
-      if (!types.includes('check_in')) return { valid: false, message: 'Debes registrar tu entrada primero' };
-      if (types.includes('lunch_out')) return { valid: false, message: 'Ya registraste tu salida a comer' };
-      if (types.includes('check_out')) return { valid: false, message: 'Ya registraste tu salida del día' };
+      if (!types.includes('check_in')) {
+        return { valid: false, message: 'Debes registrar tu entrada primero' };
+      }
+      if (types.includes('lunch_out')) {
+        return { valid: false, message: 'Ya registraste tu salida a comer' };
+      }
+      if (types.includes('check_out')) {
+        return { valid: false, message: 'Ya registraste tu salida del día' };
+      }
       break;
     case 'lunch_in':
-      if (!types.includes('lunch_out')) return { valid: false, message: 'Debes registrar salida a comer primero' };
-      if (types.includes('lunch_in')) return { valid: false, message: 'Ya registraste tu regreso de comer' };
+      if (!types.includes('lunch_out')) {
+        return { valid: false, message: 'Debes registrar salida a comer primero' };
+      }
+      if (types.includes('lunch_in')) {
+        return { valid: false, message: 'Ya registraste tu regreso de comer' };
+      }
       break;
     case 'check_out':
-      if (!types.includes('check_in')) return { valid: false, message: 'Debes registrar tu entrada primero' };
-      if (types.includes('check_out')) return { valid: false, message: 'Ya registraste tu salida hoy' };
-      if (types.includes('lunch_out') && !types.includes('lunch_in')) return { valid: false, message: 'Debes registrar tu regreso de comer primero' };
+      if (!types.includes('check_in')) {
+        return { valid: false, message: 'Debes registrar tu entrada primero' };
+      }
+      if (types.includes('check_out')) {
+        return { valid: false, message: 'Ya registraste tu salida hoy' };
+      }
+      if (types.includes('lunch_out') && !types.includes('lunch_in')) {
+        return { valid: false, message: 'Debes registrar tu regreso de comer primero' };
+      }
       break;
     default:
       return { valid: false, message: 'Tipo de registro no válido' };
@@ -157,15 +199,34 @@ export async function POST(req: NextRequest) {
 
     const { type, latitude, longitude, deviceInfo, notes, timestamp } = await req.json();
 
-    // 👇 Asegúrate de usar getPeruNowTimestamp() o el timestamp del frontend
     const localTimestamp = timestamp || getPeruNowTimestamp();
-    
-    console.log('🕐 Guardando timestamp:', localTimestamp);
-    // Debería mostrar: 2026-05-27T17:53:33 (hora Perú)
-
     const today = localTimestamp.split('T')[0];
 
-    // ... validaciones ...
+    console.log('Registrando:', { type, localTimestamp, today, userId: user.userId });
+
+    // Evitar duplicados consecutivos
+    const lastRecord = await db.query(
+      `SELECT * FROM attendance_records 
+       WHERE user_id = $1 AND DATE(timestamp::timestamp) = $2 
+       ORDER BY timestamp::timestamp DESC LIMIT 1`,
+      [user.userId, today]
+    );
+
+    if (lastRecord.rows.length > 0 && lastRecord.rows[0].type === type) {
+      return NextResponse.json(
+        { error: 'No se puede registrar el mismo tipo consecutivamente' },
+        { status: 400 }
+      );
+    }
+
+    // Validar flujo diario (incluye validación de sábados)
+    const validFlow = await validateFlow(user.userId as number, type, today);
+    if (!validFlow.valid) {
+      return NextResponse.json(
+        { error: validFlow.message },
+        { status: 400 }
+      );
+    }
 
     const result = await db.query(
       `INSERT INTO attendance_records 
@@ -189,6 +250,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error('Error en registro:', error);
-    return NextResponse.json({ error: 'Error interno' }, { status: 500 });
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
   }
 }

@@ -93,7 +93,7 @@ export function AttendanceStats() {
     {
       label: 'Comida promedio',
       value: stats.lunchTimeAverage,
-      subtext: 'tiempo de comida',
+      subtext: 'Lun-Vie',
       icon: Coffee,
       color: 'text-teal-600 dark:text-teal-400',
       bg: 'bg-teal-50 dark:bg-teal-950/50',
@@ -129,6 +129,18 @@ export function AttendanceStats() {
         <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-4">
           Estadísticas
         </h2>
+
+        {/* 👇 Info de horario */}
+        <div className="mb-4 p-3 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+          <div className="flex items-center gap-2 mb-1">
+            <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">Horario laboral</span>
+          </div>
+          <div className="text-xs text-blue-600 dark:text-blue-400 space-y-0.5">
+            <p>Lunes a Viernes: 08:00 - 17:45</p>
+            <p>Sábados: 09:00 - 12:00</p>
+          </div>
+        </div>
         
         <div className="space-y-3">
           {statItems.map((item, index) => (
