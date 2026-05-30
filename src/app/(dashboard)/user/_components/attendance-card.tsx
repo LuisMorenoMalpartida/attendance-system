@@ -249,6 +249,20 @@ export function AttendanceCard() {
 
   const isButtonDisabled = (type: AttendanceType): boolean => {
     if (loading) return true;
+    if (isSunday) return true;
+
+    if (isSaturday) {
+      if (type === 'lunch_out' || type === 'lunch_in') return true;
+      if (type === 'check_in') return lastRecord?.type === 'check_in';
+      if (type === 'check_out') {
+        if (!lastRecord) return true;
+        if (lastRecord.type === 'check_out') return true;
+        if (lastRecord.type === 'check_in') return false;
+        return true;
+      }
+      return false;
+    }
+
     const nextAction = getNextAction();
     if (!nextAction) return false;
     return type !== nextAction;

@@ -236,6 +236,30 @@ export function AdminAttendanceCard() {
 
   const isButtonDisabled = (type: AttendanceType): boolean => {
     if (loading) return true;
+    if (isSunday) return true;
+
+    // Sábado: solo entrada y salida
+    if (isSaturday) {
+      // Comida siempre bloqueada
+      if (type === 'lunch_out' || type === 'lunch_in') return true;
+
+      // Entrada: bloqueada si ya hay entrada
+      if (type === 'check_in') {
+        return lastRecord?.type === 'check_in';
+      }
+
+      // Salida: habilitada solo si hay entrada y no hay salida previa
+      if (type === 'check_out') {
+        if (!lastRecord) return true; // Sin registros → bloquear
+        if (lastRecord.type === 'check_out') return true; // Ya hay salida → bloquear
+        if (lastRecord.type === 'check_in') return false; // Hay entrada → habilitar
+        return true; // Cualquier otro caso → bloquear
+      }
+
+      return false;
+    }
+
+    // Lunes a Viernes: flujo normal
     const nextAction = getNextAction();
     if (!nextAction) return false;
     return type !== nextAction;
