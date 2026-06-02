@@ -15,7 +15,8 @@ import {
     Filter,
     Download,
     Plus,
-    MapPin
+    MapPin,
+    X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { LocationViewer } from './location-viewer';
@@ -68,11 +69,13 @@ export function AdminAttendanceHistory({ isOwnAttendance }: AdminAttendanceHisto
         type: string;
     } | null>(null);
 
+    // Nuevo estado para el modal del calendario
+    const [selectedDayDetails, setSelectedDayDetails] = useState<DayRecord | null>(null);
+
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth() + 1;
     const queryClient = useQueryClient();
 
-    // 👇 USAR REACT QUERY CON LA MISMA QUERY KEY QUE INVALIDAMOS
     const { data: records = [], isLoading: loading, refetch: fetchRecords } = useQuery({
         queryKey: ['admin-attendance-history', year, month, isOwnAttendance],
         queryFn: async () => {
@@ -90,7 +93,6 @@ export function AdminAttendanceHistory({ isOwnAttendance }: AdminAttendanceHisto
         staleTime: 30_000,
     });
 
-    // 👇 Fetch de usuarios (sin cambios, solo se necesita para admin no propio)
     const { data: users = [] } = useQuery({
         queryKey: ['admin-users'],
         queryFn: async () => {
@@ -101,17 +103,18 @@ export function AdminAttendanceHistory({ isOwnAttendance }: AdminAttendanceHisto
             }
             return [];
         },
-        enabled: !isOwnAttendance, // Solo ejecutar si no es asistencia propia
-        staleTime: 5 * 60 * 1000, // 5 minutos de caché
+        enabled: !isOwnAttendance,
+        staleTime: 5 * 60 * 1000, 
     });
 
     const handleEditSave = async (data: any) => {
-        // 👇 Invalidar para refrescar después de editar
         queryClient.invalidateQueries({ queryKey: ['admin-attendance-history'] });
+        // Opcional: Actualizar el modal abierto si lo deseas mantener abierto, o cerrarlo
+        setEditingRecord(null);
+        setSelectedDayDetails(null); 
     };
 
     const handleCreateRecord = async (data: any) => {
-        // 👇 Invalidar para refrescar después de crear
         queryClient.invalidateQueries({ queryKey: ['admin-attendance-history'] });
     };
 
@@ -129,7 +132,6 @@ export function AdminAttendanceHistory({ isOwnAttendance }: AdminAttendanceHisto
 
         if (csvData.length === 0) return;
 
-        // Tipar correctamente los valores
         const headers = Object.keys(csvData[0]);
         const csv = [
             headers.join(','),
@@ -144,12 +146,12 @@ export function AdminAttendanceHistory({ isOwnAttendance }: AdminAttendanceHisto
         a.click();
     };
 
-    useGSAP(() => {
-        gsap.fromTo('.history-row',
-            { opacity: 0, x: -10 },
-            { opacity: 1, x: 0, duration: 0.3, stagger: 0.05, ease: 'power2.out' }
-        );
-    }, [records]);
+    useGSAP(() => { 
+        gsap.fromTo('.calendar-cell', 
+            { opacity: 0, scale: 0.9 }, 
+            { opacity: 1, scale: 1, duration: 0.3, stagger: 0.02, ease: 'back.out(1.5)' }
+        ); 
+    }, [records, currentDate]);
 
     const changeMonth = (increment: number) => {
         const newDate = new Date(currentDate);
@@ -187,7 +189,6 @@ export function AdminAttendanceHistory({ isOwnAttendance }: AdminAttendanceHisto
         return colors[type] || '';
     };
 
-    // Filtrar registros por tipo
     const filteredRecords = typeFilter === 'all'
         ? records
         : records.map((day: DayRecord) => ({
@@ -195,9 +196,26 @@ export function AdminAttendanceHistory({ isOwnAttendance }: AdminAttendanceHisto
             records: day.records.filter(r => r.type === typeFilter)
         })).filter((day: DayRecord) => day.records.length > 0);
 
+    // --- LÓGICA DEL CALENDARIO ---
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const firstDayOfMonth = new Date(year, month - 1, 1).getDay(); 
+    
+    const getRecordForDay = (day: number): DayRecord => {
+        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const found = filteredRecords.find((r: DayRecord) => {
+            const recordDate = r.date.split('T')[0]; 
+            return recordDate === dateStr;
+        });
+        return found || { date: dateStr, records: [], hoursWorked: null };
+    };
+
+    const calendarDays = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+    const blankDays = Array.from({ length: firstDayOfMonth }, (_, i) => i);
+    const weekDays = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+
     return (
         <>
-            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden relative">
                 <div className="relative h-1 bg-gradient-to-r from-purple-600 via-pink-600 to-red-600" />
 
                 <div className="p-6">
@@ -257,80 +275,155 @@ export function AdminAttendanceHistory({ isOwnAttendance }: AdminAttendanceHisto
                     )}
 
                     {loading ? (
-                        <div className="space-y-3">
-                            {[...Array(5)].map((_, i) => (
-                                <div key={i} className="animate-pulse"><div className="h-20 bg-slate-100 dark:bg-slate-800 rounded-xl" /></div>
+                        <div className="grid grid-cols-7 gap-2">
+                            {[...Array(35)].map((_, i) => (
+                                <div key={i} className="animate-pulse h-24 bg-slate-100 dark:bg-slate-800 rounded-xl" />
                             ))}
-                        </div>
-                    ) : filteredRecords.length === 0 ? (
-                        <div className="text-center py-12">
-                            <Calendar className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
-                            <p className="text-slate-500 dark:text-slate-400">No hay registros este mes</p>
                         </div>
                     ) : (
-                        <div className="space-y-3">
-                            {filteredRecords.map((day: DayRecord) => (
-                                <div key={day.date} className="history-row bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <div>
-                                            <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                                                {formatDate(day.date)}
-                                            </p>
-                                        </div>
-                                        {day.hoursWorked !== null && (
-                                            <div className="text-right">
-                                                <p className="text-xs text-slate-500 dark:text-slate-400">Horas trabajadas</p>
-                                                <p className="text-sm font-bold text-slate-900 dark:text-white">
-                                                    {formatHoursWorked(day.hoursWorked)}
-                                                </p>
-                                            </div>
-                                        )}
+                        <div>
+                            <div className="grid grid-cols-7 gap-2 mb-2">
+                                {weekDays.map(day => (
+                                    <div key={day} className="text-center text-xs font-semibold text-slate-400 py-2">
+                                        {day}
                                     </div>
+                                ))}
+                            </div>
+                            
+                            <div className="grid grid-cols-7 gap-2">
+                                {blankDays.map(blank => (
+                                    <div key={`blank-${blank}`} className="h-20 sm:h-24 rounded-xl bg-slate-50/50 dark:bg-slate-800/10" />
+                                ))}
+                                
+                                {calendarDays.map(day => {
+                                    const dayRecord = getRecordForDay(day);
+                                    const hasRecords = dayRecord.records.length > 0;
+                                    const isFuture = new Date(dayRecord.date) > new Date();
+                                    
+                                    const cellColor = isFuture 
+                                        ? 'bg-slate-50 dark:bg-slate-800/30 text-slate-400 cursor-default' 
+                                        : hasRecords 
+                                            ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-800/50 cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/50 border'
+                                            : 'bg-slate-50 dark:bg-slate-800/50 text-slate-500 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-100 dark:border-slate-800/50';
 
-                                    <div className="space-y-2">
-                                        {day.records.map((record) => (
-                                            <div key={record.id} className="flex items-center gap-3 text-sm group">
-                                                {getTypeIcon(record.type)}
-                                                <Badge className={getTypeBadgeColor(record.type)}>{getTypeLabel(record.type)}</Badge>
-
-                                                {!isOwnAttendance && (
-                                                    <span className="text-xs text-slate-500 dark:text-slate-400 min-w-[100px]">
-                                                        <User className="w-3 h-3 inline mr-1" />{record.user_name}
+                                    return (
+                                        <div 
+                                            key={day} 
+                                            onClick={() => !isFuture && setSelectedDayDetails(dayRecord)}
+                                            className={`calendar-cell relative flex flex-col items-center justify-center p-2 h-20 sm:h-24 rounded-xl transition-all hover:shadow-md ${cellColor}`}
+                                        >
+                                            <span className="text-sm font-bold">{day}</span>
+                                            {!isFuture && hasRecords && (
+                                                <div className="mt-1 flex flex-col items-center">
+                                                    <span className="text-[10px] font-medium opacity-80 whitespace-nowrap mb-1">
+                                                        {dayRecord.records.length} {dayRecord.records.length === 1 ? 'reg' : 'regs'}
                                                     </span>
-                                                )}
-
-                                                <span className="font-mono text-slate-900 dark:text-white">
-                                                    {formatTime(record.timestamp)}
-                                                </span>
-
-                                                {record.is_manual && (
-                                                    <Badge variant="outline" className="text-xs border-amber-300 text-amber-600">Manual</Badge>
-                                                )}
-
-                                                <div className="flex-1">
-                                                    <span className="text-xs text-slate-400">{record.notes || 'Sin notas'}</span>
+                                                    <div className="flex gap-0.5">
+                                                        {/* Muestra hasta 3 puntitos indicando registros */}
+                                                        {dayRecord.records.slice(0, 3).map((r, idx) => (
+                                                            <div key={idx} className="w-1.5 h-1.5 rounded-full bg-indigo-500 dark:bg-indigo-400" />
+                                                        ))}
+                                                        {dayRecord.records.length > 3 && <div className="w-1.5 h-1.5 rounded-full bg-indigo-300" />}
+                                                    </div>
                                                 </div>
-
-                                                {record.latitude !== null && record.longitude !== null && (
-                                                    <button onClick={() => setViewingLocation({ latitude: record.latitude!, longitude: record.longitude!, userName: record.user_name, timestamp: record.timestamp, type: record.type })}
-                                                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-slate-200 transition-all" title="Ver ubicación">
-                                                        <MapPin className="w-4 h-4 text-red-500" />
-                                                    </button>
-                                                )}
-
-                                                <button onClick={() => setEditingRecord(record)}
-                                                    className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-slate-200 transition-all" title="Editar registro">
-                                                    <Edit3 className="w-4 h-4 text-slate-600" />
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            ))}
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
                     )}
                 </div>
             </div>
+
+            {/* Modal de Detalles del Día para el Admin */}
+            {selectedDayDetails && (
+                <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-lg max-h-[80vh] flex flex-col rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+                        <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 shrink-0">
+                            <div>
+                                <p className="font-bold text-slate-900 dark:text-white">{formatDate(selectedDayDetails.date)}</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    {selectedDayDetails.records.length} {selectedDayDetails.records.length === 1 ? 'registro' : 'registros'}
+                                </p>
+                            </div>
+                            <button 
+                                onClick={() => setSelectedDayDetails(null)}
+                                className="p-1.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-500"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        
+                        <div className="p-6 overflow-y-auto">
+                            {selectedDayDetails.hoursWorked !== null && (
+                                <div className="mb-6 pb-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                                    <span className="text-sm text-slate-500 dark:text-slate-400">Total horas computadas:</span>
+                                    <span className="text-base font-bold text-slate-900 dark:text-white">{formatHoursWorked(selectedDayDetails.hoursWorked)}</span>
+                                </div>
+                            )}
+
+                            {selectedDayDetails.records.length > 0 ? (
+                                <div className="space-y-4">
+                                    {selectedDayDetails.records.map((record) => (
+                                        <div key={record.id} className="flex items-start gap-3 text-sm group p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                                            <div className="mt-1">{getTypeIcon(record.type)}</div>
+                                            <div className="flex-1">
+                                                <div className="flex flex-wrap items-center gap-2 mb-2">
+                                                    <Badge className={getTypeBadgeColor(record.type)}>
+                                                        {getTypeLabel(record.type)}
+                                                    </Badge>
+                                                    <span className="font-mono text-xs font-semibold text-slate-900 dark:text-white bg-white dark:bg-slate-900 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
+                                                        {formatTime(record.timestamp)}
+                                                    </span>
+                                                    {record.is_manual && (
+                                                        <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-600 bg-amber-50 dark:bg-amber-950/30">Manual</Badge>
+                                                    )}
+                                                </div>
+
+                                                {!isOwnAttendance && (
+                                                    <div className="flex items-center gap-1.5 mb-1 text-slate-700 dark:text-slate-300 font-medium">
+                                                        <User className="w-3.5 h-3.5 text-slate-400" />
+                                                        {record.user_name}
+                                                    </div>
+                                                )}
+
+                                                <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                                    {record.notes || <span className="italic opacity-50">Sin notas registradas</span>}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex flex-col gap-2">
+                                                {record.latitude !== null && record.longitude !== null && (
+                                                    <button 
+                                                        onClick={() => setViewingLocation({ latitude: record.latitude!, longitude: record.longitude!, userName: record.user_name, timestamp: record.timestamp, type: record.type })}
+                                                        className="p-1.5 rounded-md bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600 transition-all shadow-sm" 
+                                                        title="Ver ubicación"
+                                                    >
+                                                        <MapPin className="w-4 h-4 text-red-500" />
+                                                    </button>
+                                                )}
+                                                <button 
+                                                    onClick={() => setEditingRecord(record)}
+                                                    className="p-1.5 rounded-md bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600 transition-all shadow-sm" 
+                                                    title="Editar registro"
+                                                >
+                                                    <Edit3 className="w-4 h-4 text-slate-600 dark:text-slate-300" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-10">
+                                    <AlertCircle className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+                                    <p className="text-sm text-slate-500 dark:text-slate-400">Sin registros para esta fecha</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {editingRecord && (
                 <EditAttendanceModal isOpen={!!editingRecord} onClose={() => setEditingRecord(null)} record={editingRecord} onSave={handleEditSave} />
