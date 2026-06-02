@@ -18,6 +18,7 @@ import {
     Users,
     MapPin,
     Edit3,
+    Plus,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -32,6 +33,7 @@ import { EditAttendanceModal } from './edit-attendance-modal';
 import { LocationViewer } from './location-viewer';
 import { formatDateToPeruYYYYMMDD } from '@/lib/date-utils';
 import ExcelJS from 'exceljs';
+import { CreateManualRecord } from './create-manual-record';
 
 interface CalendarDay {
     date: string;
@@ -84,7 +86,9 @@ export function AttendanceCalendarView() {
     const [showDayDetail, setShowDayDetail] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [exporting, setExporting] = useState(false);
-    
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [selectedDateForManual, setSelectedDateForManual] = useState<string>('');
+
     // Estados para edición y ubicación
     const [editingRecord, setEditingRecord] = useState<any>(null);
     const [viewingLocation, setViewingLocation] = useState<{
@@ -189,7 +193,7 @@ export function AttendanceCalendarView() {
         const startingDayOfWeek = firstDay.getDay();
         const lastDay = new Date(year, month + 1, 0);
         const daysInMonth = lastDay.getDate();
-            const today = new Date();
+        const today = new Date();
         const todayStr = formatDateToPeruYYYYMMDD(today);
         const days: CalendarDay[] = [];
 
@@ -218,19 +222,19 @@ export function AttendanceCalendarView() {
 
         // Recopilar todos los registros de este día para el modal
         const allDayRecords: any[] = [];
-        
+
         const usersStatus = users.map((user, index) => {
-            const userDayData = allRecords.find((r: any) => 
+            const userDayData = allRecords.find((r: any) =>
                 r.date === dateStr && r.records?.some((rec: any) => rec.user_id === user.id)
             );
             const userRecords = userDayData?.records?.filter((r: any) => r.user_id === user.id) || [];
-            
+
             // Agregar registros al array general
             allDayRecords.push(...userRecords);
-            
+
             const hasCheckIn = userRecords.some((r: any) => r.type === 'check_in');
             const hasCheckOut = userRecords.some((r: any) => r.type === 'check_out');
-            
+
             let status = 'absent';
             if (isSunday) status = 'weekend';
             else if (hasCheckIn && hasCheckOut) status = 'complete';
@@ -246,7 +250,7 @@ export function AttendanceCalendarView() {
 
         const allComplete = usersStatus.every(u => u.status === 'complete' || u.status === 'weekend');
         const allAbsent = usersStatus.every(u => u.status === 'absent' || u.status === 'weekend');
-        
+
         let status: CalendarDay['status'] = 'absent';
         if (isSunday) status = 'weekend';
         else if (allComplete) status = 'complete';
@@ -584,9 +588,9 @@ export function AttendanceCalendarView() {
                         </div>
 
                         {selectedUser && selectedUser !== 'all' && (
-                            <Button 
-                                onClick={exportToExcel} 
-                                variant="default" 
+                            <Button
+                                onClick={exportToExcel}
+                                variant="default"
                                 size="sm"
                                 disabled={exporting}
                                 className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
@@ -628,11 +632,10 @@ export function AttendanceCalendarView() {
 
                             <div className="grid grid-cols-7 gap-1 mb-2">
                                 {weekDays.map(day => (
-                                    <div key={day} className={`text-center text-xs font-semibold py-2 ${
-                                        day === 'Sáb' ? 'text-blue-500 dark:text-blue-400' :
-                                        day === 'Dom' ? 'text-red-500 dark:text-red-400' :
-                                        'text-slate-500 dark:text-slate-400'
-                                    }`}>{day}</div>
+                                    <div key={day} className={`text-center text-xs font-semibold py-2 ${day === 'Sáb' ? 'text-blue-500 dark:text-blue-400' :
+                                            day === 'Dom' ? 'text-red-500 dark:text-red-400' :
+                                                'text-slate-500 dark:text-slate-400'
+                                        }`}>{day}</div>
                                 ))}
                             </div>
 
@@ -739,7 +742,23 @@ export function AttendanceCalendarView() {
                                 </h3>
                                 <button onClick={() => setShowDayDetail(false)} className="p-2 rounded-lg hover:bg-slate-100">✕</button>
                             </div>
-
+                            <div className="mb-4">
+                                <Button
+                                    onClick={() => {
+                                        setShowDayDetail(false);
+                                        // Abrir modal de creación manual con la fecha preseleccionada
+                                        setShowCreateModal(true);
+                                        // También debes agregar el estado selectedDateForManual
+                                        setSelectedDateForManual(selectedDay.date);
+                                    }}
+                                    variant="outline"
+                                    size="sm"
+                                    className="w-full border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-950/50"
+                                >
+                                    <Plus className="w-4 h-4 mr-2" />
+                                    Agregar registro manual
+                                </Button>
+                            </div>
                             {selectedDay.isSaturday && (
                                 <div className="mb-3 p-2 rounded-lg bg-blue-50 dark:bg-blue-950/50 text-xs text-blue-700">🕐 Sábado - 09:00 a 12:00</div>
                             )}
@@ -768,7 +787,7 @@ export function AttendanceCalendarView() {
                                                 </div>
                                                 <p className="text-xs text-slate-500">{formatTime(record.timestamp)}</p>
                                             </div>
-                                            
+
                                             {/* Botón ubicación */}
                                             {(record.latitude || record.longitude) && (
                                                 <button
@@ -785,7 +804,7 @@ export function AttendanceCalendarView() {
                                                     <MapPin className="w-4 h-4 text-red-500" />
                                                 </button>
                                             )}
-                                            
+
                                             {/* Botón editar */}
                                             <button
                                                 onClick={() => setEditingRecord(record)}
@@ -820,6 +839,17 @@ export function AttendanceCalendarView() {
                     onSave={handleEditSave}
                 />
             )}
+
+            {/* Modal de creación manual */}
+            <CreateManualRecord
+                isOpen={showCreateModal}
+                onClose={() => setShowCreateModal(false)}
+                onCreate={async (data: any) => {
+                    await fetchMonthData(); // Recargar datos del calendario
+                }}
+                preselectedDate={selectedDateForManual}
+                preselectedUserId={selectedUser !== 'all' ? selectedUser : undefined}
+            />
 
             {/* Modal de ubicación */}
             {viewingLocation && (
