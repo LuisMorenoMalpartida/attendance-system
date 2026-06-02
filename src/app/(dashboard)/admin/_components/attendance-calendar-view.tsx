@@ -564,27 +564,35 @@ export function AttendanceCalendarView() {
                         <div className="flex items-center gap-3">
                             <User className="w-5 h-5 text-slate-600" />
                             <Select
-                                value={selectedUser}
-                                onValueChange={(value) => setSelectedUser(value ?? '')}
-                            >
-                                <SelectTrigger className="w-64">
-                                    <SelectValue placeholder="Seleccionar usuario" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">
-                                        <div className="flex items-center gap-2 font-semibold">
-                                            <Users className="w-4 h-4" />
-                                            Todos los usuarios
-                                        </div>
-                                    </SelectItem>
-                                    <div className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
-                                    {users.map(user => (
-                                        <SelectItem key={user.id} value={user.id.toString()}>
-                                            {user.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+    value={selectedUser}
+    onValueChange={(value) => setSelectedUser(value ?? '')}
+>
+    <SelectTrigger className="w-64">
+        <SelectValue placeholder="Seleccionar usuario">
+            {/* 👇 Mostrar el nombre en lugar del ID */}
+            {selectedUser === 'all' 
+                ? 'Todos los usuarios'
+                : selectedUser 
+                    ? users.find(u => u.id.toString() === selectedUser)?.name || `Usuario #${selectedUser}`
+                    : 'Seleccionar usuario'
+            }
+        </SelectValue>
+    </SelectTrigger>
+    <SelectContent>
+        <SelectItem value="all">
+            <div className="flex items-center gap-2 font-semibold">
+                <Users className="w-4 h-4" />
+                Todos los usuarios
+            </div>
+        </SelectItem>
+        <div className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
+        {users.map(user => (
+            <SelectItem key={user.id} value={user.id.toString()}>
+                {user.name}
+            </SelectItem>
+        ))}
+    </SelectContent>
+</Select>
                         </div>
 
                         {selectedUser && selectedUser !== 'all' && (
@@ -633,8 +641,8 @@ export function AttendanceCalendarView() {
                             <div className="grid grid-cols-7 gap-1 mb-2">
                                 {weekDays.map(day => (
                                     <div key={day} className={`text-center text-xs font-semibold py-2 ${day === 'Sáb' ? 'text-blue-500 dark:text-blue-400' :
-                                            day === 'Dom' ? 'text-red-500 dark:text-red-400' :
-                                                'text-slate-500 dark:text-slate-400'
+                                        day === 'Dom' ? 'text-red-500 dark:text-red-400' :
+                                            'text-slate-500 dark:text-slate-400'
                                         }`}>{day}</div>
                                 ))}
                             </div>
@@ -845,10 +853,11 @@ export function AttendanceCalendarView() {
                 isOpen={showCreateModal}
                 onClose={() => setShowCreateModal(false)}
                 onCreate={async (data: any) => {
-                    await fetchMonthData(); // Recargar datos del calendario
+                    await fetchMonthData();
                 }}
                 preselectedDate={selectedDateForManual}
                 preselectedUserId={selectedUser !== 'all' ? selectedUser : undefined}
+                preselectedUserName={selectedUser !== 'all' ? users.find(u => u.id.toString() === selectedUser)?.name : undefined}
             />
 
             {/* Modal de ubicación */}

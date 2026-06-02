@@ -29,6 +29,7 @@ interface CreateManualRecordProps {
     onCreate: (data: any) => void;
     preselectedDate?: string;
     preselectedUserId?: string;
+    preselectedUserName?: string;
 }
 
 interface UserOption {
