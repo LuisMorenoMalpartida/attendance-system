@@ -2,11 +2,13 @@ import { z } from 'zod';
 
 // Validaciones que coinciden con las restricciones de PostgreSQL
 export const loginSchema = z.object({
-  name: z
+  email: z
     .string()
-    .min(1, 'El nombre es requerido')
-    .max(255, 'El nombre es muy largo')
-    .trim(),
+    .min(1, 'El email es requerido')
+    .email('Email invalido')
+    .max(255, 'El email es muy largo')
+    .trim()
+    .toLowerCase(),
   password: z
     .string()
     .min(3, 'La contraseña debe tener al menos 3 caracteres')

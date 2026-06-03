@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import type { LoginCredentials } from '../types/auth';
 
 interface LoginState {
-  name: string;
+  email: string;
   password: string;
 }
 
@@ -16,7 +17,7 @@ interface LoginError {
 export function useLogin() {
   const router = useRouter();
   const [formData, setFormData] = useState<LoginState>({
-    name: '',
+    email: '',
     password: '',
   });
   const [error, setError] = useState<LoginError | null>(null);
@@ -35,8 +36,8 @@ export function useLogin() {
   };
 
   const validateForm = (): boolean => {
-    if (!formData.name.trim()) {
-      setError({ message: 'El nombre de usuario es requerido', field: 'name' });
+    if (!formData.email.trim()) {
+      setError({ message: 'El email es requerido', field: 'email' });
       return false;
     }
     if (!formData.password.trim()) {
@@ -63,7 +64,7 @@ export function useLogin() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: formData.name.trim(),
+          email: formData.email.trim(),
           password: formData.password,
         }),
       });

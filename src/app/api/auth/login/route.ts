@@ -63,24 +63,24 @@ export async function POST(req: NextRequest) {
     // Inicializar usuarios de prueba si no existen
     await initializeTestUsers();
 
-    const { name, password } = await req.json();
+    const { email, password } = await req.json();
 
-    if (!name || !password) {
+    if (!email || !password) {
       return NextResponse.json(
-        { error: 'Nombre y contraseña son requeridos' },
+        { error: 'Email y contraseña son requeridos' },
         { status: 400 }
       );
     }
 
     // Buscar usuario
     const result = await pool.query(
-      'SELECT * FROM users WHERE name = $1 AND is_active = true',
-      [name]
+      'SELECT * FROM users WHERE email = $1 AND is_active = true',
+      [email]
     );
 
     if (result.rows.length === 0) {
       return NextResponse.json(
-        { error: 'Usuario no encontrado o inactivo' },
+        { error: 'Email no encontrado o inactivo' },
         { status: 401 }
       );
     }

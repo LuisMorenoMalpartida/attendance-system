@@ -4,17 +4,18 @@ import { useLogin } from '@/hooks/use-login';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 import Link from 'next/link';
-import { 
-  LogIn, 
-  User, 
-  Lock, 
-  Eye, 
-  EyeOff, 
+import {
+  LogIn,
+  User,
+  Lock,
+  Eye,
+  EyeOff,
   Clock,
   Building2,
   ArrowRight,
   Shield,
-  UserPlus
+  UserPlus,
+  Mail
 } from 'lucide-react';
 
 export function LoginForm() {
@@ -32,107 +33,107 @@ export function LoginForm() {
     // Animación principal del contenedor
     const tl = gsap.timeline();
 
-    tl.fromTo('.login-wrapper', 
-      { 
-        opacity: 0, 
+    tl.fromTo('.login-wrapper',
+      {
+        opacity: 0,
         scale: 0.9,
-        y: 30 
+        y: 30
       },
-      { 
-        opacity: 1, 
-        scale: 1, 
-        y: 0, 
-        duration: 0.8, 
-        ease: 'power3.out' 
+      {
+        opacity: 1,
+        scale: 1,
+        y: 0,
+        duration: 0.8,
+        ease: 'power3.out'
       }
     );
 
     // Animación del header
     tl.fromTo('.login-header-icon',
-      { 
-        scale: 0, 
-        rotation: -180 
+      {
+        scale: 0,
+        rotation: -180
       },
-      { 
-        scale: 1, 
-        rotation: 0, 
-        duration: 0.6, 
-        ease: 'back.out(1.7)' 
+      {
+        scale: 1,
+        rotation: 0,
+        duration: 0.6,
+        ease: 'back.out(1.7)'
       },
       '-=0.4'
     );
 
     // Animación del título y descripción
     tl.fromTo('.login-title',
-      { 
-        opacity: 0, 
-        y: -20 
+      {
+        opacity: 0,
+        y: -20
       },
-      { 
-        opacity: 1, 
-        y: 0, 
-        duration: 0.5, 
-        ease: 'power2.out' 
+      {
+        opacity: 1,
+        y: 0,
+        duration: 0.5,
+        ease: 'power2.out'
       },
       '-=0.2'
     );
 
     tl.fromTo('.login-description',
-      { 
-        opacity: 0, 
-        y: -10 
+      {
+        opacity: 0,
+        y: -10
       },
-      { 
-        opacity: 1, 
-        y: 0, 
-        duration: 0.5, 
-        ease: 'power2.out' 
+      {
+        opacity: 1,
+        y: 0,
+        duration: 0.5,
+        ease: 'power2.out'
       },
       '-=0.3'
     );
 
     // Animación de los campos del formulario
     tl.fromTo('.form-field',
-      { 
-        opacity: 0, 
-        x: -30 
+      {
+        opacity: 0,
+        x: -30
       },
-      { 
-        opacity: 1, 
-        x: 0, 
-        duration: 0.5, 
-        stagger: 0.15, 
-        ease: 'power2.out' 
+      {
+        opacity: 1,
+        x: 0,
+        duration: 0.5,
+        stagger: 0.15,
+        ease: 'power2.out'
       },
       '-=0.2'
     );
 
     // Animación del botón
     tl.fromTo('.login-button',
-      { 
-        opacity: 0, 
-        y: 20 
+      {
+        opacity: 0,
+        y: 20
       },
-      { 
-        opacity: 1, 
-        y: 0, 
-        duration: 0.5, 
-        ease: 'power2.out' 
+      {
+        opacity: 1,
+        y: 0,
+        duration: 0.5,
+        ease: 'power2.out'
       },
       '-=0.1'
     );
 
     // Animación del footer con credenciales
     tl.fromTo('.login-footer',
-      { 
-        opacity: 0, 
-        y: 20 
+      {
+        opacity: 0,
+        y: 20
       },
-      { 
-        opacity: 1, 
-        y: 0, 
-        duration: 0.5, 
-        ease: 'power2.out' 
+      {
+        opacity: 1,
+        y: 0,
+        duration: 0.5,
+        ease: 'power2.out'
       },
       '-=0.2'
     );
@@ -142,17 +143,17 @@ export function LoginForm() {
   useGSAP(() => {
     if (error) {
       gsap.fromTo('.error-container',
-        { 
-          x: -20, 
-          opacity: 0, 
-          height: 0 
+        {
+          x: -20,
+          opacity: 0,
+          height: 0
         },
-        { 
-          x: 0, 
-          opacity: 1, 
-          height: 'auto', 
-          duration: 0.3, 
-          ease: 'power2.out' 
+        {
+          x: 0,
+          opacity: 1,
+          height: 'auto',
+          duration: 0.3,
+          ease: 'power2.out'
         }
       );
     }
@@ -172,10 +173,10 @@ export function LoginForm() {
   return (
     <div className="w-full max-w-md">
       <div className="login-wrapper bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-        
+
         {/* Header decorativo */}
         <div className="relative h-2 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600" />
-        
+
         <div className="p-8">
           {/* Header del formulario */}
           <div className="text-center mb-8">
@@ -185,7 +186,7 @@ export function LoginForm() {
                 <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-white dark:border-slate-900" />
               </div>
             </div>
-            
+
             <h1 className="login-title text-2xl font-bold text-slate-900 dark:text-white mb-2">
               Iniciar Sesión
             </h1>
@@ -215,46 +216,44 @@ export function LoginForm() {
 
           {/* Formulario */}
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Campo de usuario */}
+            {/* Campo de email */}
             <div className="form-field space-y-2">
-              <label 
-                htmlFor="name" 
+              <label
+                htmlFor="email"
                 className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2"
               >
-                <User className="w-4 h-4" />
-                Usuario
+                <Mail className="w-4 h-4" />
+                Correo Electrónico
               </label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <User className={`h-5 w-5 transition-colors duration-200 ${
-                    error?.field === 'name' 
-                      ? 'text-red-400' 
+                  <Mail className={`h-5 w-5 transition-colors duration-200 ${error?.field === 'email'
+                      ? 'text-red-400'
                       : 'text-slate-400 group-focus-within:text-blue-500'
-                  }`} />
+                    }`} />
                 </div>
                 <input
-                  id="name"
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => updateField('name', e.target.value)}
-                  placeholder="Ingresa tu usuario"
-                  className={`w-full pl-10 pr-4 py-3 rounded-xl border-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 transition-all duration-200 outline-none ${
-                    error?.field === 'name'
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => updateField('email', e.target.value)}
+                  placeholder="Ingresa tu correo electronico"
+                  className={`w-full pl-10 pr-4 py-3 rounded-xl border-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 transition-all duration-200 outline-none ${error?.field === 'email'
                       ? 'border-red-300 dark:border-red-700 focus:border-red-500 focus:ring-4 focus:ring-red-100 dark:focus:ring-red-900'
                       : 'border-slate-200 dark:border-slate-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900'
-                  }`}
-                  autoComplete="username"
+                    }`}
+                  autoComplete="email"
                 />
               </div>
-              {error?.field === 'name' && (
+              {error?.field === 'email' && (
                 <p className="text-xs text-red-500 mt-1 ml-1">{error.message}</p>
               )}
             </div>
 
             {/* Campo de contraseña */}
             <div className="form-field space-y-2">
-              <label 
-                htmlFor="password" 
+              <label
+                htmlFor="password"
                 className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2"
               >
                 <Lock className="w-4 h-4" />
@@ -262,11 +261,10 @@ export function LoginForm() {
               </label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className={`h-5 w-5 transition-colors duration-200 ${
-                    error?.field === 'password' 
-                      ? 'text-red-400' 
+                  <Lock className={`h-5 w-5 transition-colors duration-200 ${error?.field === 'password'
+                      ? 'text-red-400'
                       : 'text-slate-400 group-focus-within:text-blue-500'
-                  }`} />
+                    }`} />
                 </div>
                 <input
                   id="password"
@@ -274,11 +272,10 @@ export function LoginForm() {
                   value={formData.password}
                   onChange={(e) => updateField('password', e.target.value)}
                   placeholder="Ingresa tu contraseña"
-                  className={`w-full pl-10 pr-12 py-3 rounded-xl border-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 transition-all duration-200 outline-none ${
-                    error?.field === 'password'
+                  className={`w-full pl-10 pr-12 py-3 rounded-xl border-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 transition-all duration-200 outline-none ${error?.field === 'password'
                       ? 'border-red-300 dark:border-red-700 focus:border-red-500 focus:ring-4 focus:ring-red-100 dark:focus:ring-red-900'
                       : 'border-slate-200 dark:border-slate-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900'
-                  }`}
+                    }`}
                   autoComplete="current-password"
                 />
                 <button
@@ -314,11 +311,10 @@ export function LoginForm() {
               disabled={loading}
               className="login-button w-full relative group"
             >
-              <div className={`login-button-content relative w-full py-3 px-4 rounded-xl font-medium text-white transition-all duration-300 ${
-                loading 
-                  ? 'bg-slate-400 cursor-not-allowed' 
+              <div className={`login-button-content relative w-full py-3 px-4 rounded-xl font-medium text-white transition-all duration-300 ${loading
+                  ? 'bg-slate-400 cursor-not-allowed'
                   : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 active:scale-[0.98]'
-              }`}>
+                }`}>
                 <div className="flex items-center justify-center gap-2">
                   {loading ? (
                     <>
