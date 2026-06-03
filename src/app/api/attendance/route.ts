@@ -56,16 +56,29 @@ function getPeruToday(): string {
 }
 
 // ============================================================
-// VALIDACIÓN DE FLUJO (CON SOPORTE PARA SÁBADOS)
+// VALIDACION DE FLUJO CON SOPORTE PARA HORARIOS PERSONALIZADOS
 // ============================================================
 async function validateFlow(userId: number, type: string, date: string) {
-  const dayOfWeek = new Date(date + 'T12:00:00').getDay(); // 0=Dom, 6=Sáb
+  const dayOfWeek = new Date(date + 'T12:00:00').getDay();
+  
+  // Obtener horario del usuario para este dia
+  const schedule = await db.query(
+    `SELECT * FROM work_schedules 
+     WHERE user_id = $1 AND day_of_week = $2 AND is_active = true`,
+    [userId, dayOfWeek]
+  );
+
+  // Si no tiene horario para este dia, no puede marcar
+  if (schedule.rows.length === 0) {
+    return { valid: false, message: 'No tienes horario laboral para este dia' };
+  }
+
+  const scheduleData = schedule.rows[0];
   const isSaturday = dayOfWeek === 6;
   const isSunday = dayOfWeek === 0;
 
-  // Domingo no se trabaja
   if (isSunday) {
-    return { valid: false, message: 'Domingo no es día laborable' };
+    return { valid: false, message: 'Domingo no es dia laborable' };
   }
 
   const records = await db.query(
@@ -76,7 +89,7 @@ async function validateFlow(userId: number, type: string, date: string) {
   );
   const types = records.rows.map((r: any) => r.type);
 
-  // Sábado: solo entrada y salida (sin comida)
+  // Sabado: solo entrada y salida (sin comida)
   if (isSaturday) {
     switch (type) {
       case 'check_in':
@@ -94,14 +107,28 @@ async function validateFlow(userId: number, type: string, date: string) {
         break;
       case 'lunch_out':
       case 'lunch_in':
-        return { valid: false, message: 'Los sábados no tienen horario de comida' };
+        return { valid: false, message: 'Los sabados no tienen horario de comida' };
       default:
-        return { valid: false, message: 'Tipo de registro no válido' };
+        return { valid: false, message: 'Tipo de registro no valido' };
     }
     return { valid: true, message: 'OK' };
   }
 
-  // Lunes a Viernes: flujo normal con comida
+  // Lunes a Viernes: verificar si el horario incluye comida
+  const startTime = scheduleData.start_time;
+  const endTime = scheduleData.end_time;
+  
+  // Calcular horas trabajadas para determinar si hay comida
+  const startHour = parseInt(startTime.split(':')[0]);
+  const endHour = parseInt(endTime.split(':')[0]);
+  const hoursWorked = endHour - startHour;
+  const hasLunchBreak = hoursWorked > 5; // Si trabaja mas de 5 horas, tiene comida
+
+  // Si no tiene comida, bloquear lunch_out y lunch_in
+  if (!hasLunchBreak && (type === 'lunch_out' || type === 'lunch_in')) {
+    return { valid: false, message: 'Tu horario no incluye tiempo de comida' };
+  }
+
   switch (type) {
     case 'check_in':
       if (types.includes('check_in')) {
@@ -116,7 +143,7 @@ async function validateFlow(userId: number, type: string, date: string) {
         return { valid: false, message: 'Ya registraste tu salida a comer' };
       }
       if (types.includes('check_out')) {
-        return { valid: false, message: 'Ya registraste tu salida del día' };
+        return { valid: false, message: 'Ya registraste tu salida del dia' };
       }
       break;
     case 'lunch_in':
@@ -134,18 +161,18 @@ async function validateFlow(userId: number, type: string, date: string) {
       if (types.includes('check_out')) {
         return { valid: false, message: 'Ya registraste tu salida hoy' };
       }
-      if (types.includes('lunch_out') && !types.includes('lunch_in')) {
+      if (hasLunchBreak && types.includes('lunch_out') && !types.includes('lunch_in')) {
         return { valid: false, message: 'Debes registrar tu regreso de comer primero' };
       }
       break;
     default:
-      return { valid: false, message: 'Tipo de registro no válido' };
+      return { valid: false, message: 'Tipo de registro no valido' };
   }
   return { valid: true, message: 'OK' };
 }
 
 // ============================================================
-// GET - Obtener registros del día
+// GET - Obtener registros del dia
 // ============================================================
 export async function GET(req: NextRequest) {
   try {
@@ -219,7 +246,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validar flujo diario (incluye validación de sábados)
+    // Validar flujo diario (incluye validacion de sabados y horarios personalizados)
     const validFlow = await validateFlow(user.userId as number, type, today);
     if (!validFlow.valid) {
       return NextResponse.json(
