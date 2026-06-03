@@ -14,127 +14,176 @@ function getPeruToday(): string {
 
 export async function GET(req: NextRequest) {
   try {
-    const admin = await verifyAuth(req);
-    if (!admin || admin.role !== 'admin') {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    const user = await verifyAuth(req);
+    if (!user) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
+    // Obtener parametros de mes/año (si no vienen, usar mes actual)
     const { searchParams } = new URL(req.url);
-    const own = searchParams.get('own');
+    const year = parseInt(searchParams.get('year') || String(new Date().getFullYear()));
+    const month = parseInt(searchParams.get('month') || String(new Date().getMonth() + 1));
+
     const today = getPeruToday();
+    const userId = user.userId;
 
-    if (own === 'true') {
-      // Estadisticas personales del admin
-      const schedules = await db.query(
-        `SELECT * FROM work_schedules WHERE user_id = $1 AND is_active = true`,
-        [admin.userId]
-      );
+    console.log('Stats - Año:', year, 'Mes:', month, 'User:', userId);
 
-      const stats = await db.query(`
-        SELECT 
-          (SELECT COUNT(DISTINCT DATE(timestamp::timestamp)) 
-           FROM attendance_records 
-           WHERE user_id = $1 
-           AND EXTRACT(MONTH FROM timestamp::timestamp) = EXTRACT(MONTH FROM CURRENT_DATE)) as days_worked,
-          COALESCE(AVG(CASE WHEN type = 'check_in' THEN EXTRACT(HOUR FROM timestamp::timestamp) + EXTRACT(MINUTE FROM timestamp::timestamp)/60.0 END), 0) as avg_check_in,
-          COALESCE(AVG(CASE WHEN type = 'check_out' THEN EXTRACT(HOUR FROM timestamp::timestamp) + EXTRACT(MINUTE FROM timestamp::timestamp)/60.0 END), 0) as avg_check_out,
-          COALESCE(SUM(CASE WHEN type = 'check_in' AND DATE(timestamp::timestamp) = $2 THEN 1 ELSE 0 END), 0) as present_today
-        FROM attendance_records
-        WHERE user_id = $1
-      `, [admin.userId, today]);
+    // Obtener horarios del usuario
+    const schedules = await db.query(
+      `SELECT * FROM work_schedules WHERE user_id = $1 AND is_active = true`,
+      [userId]
+    );
 
-      // Calcular llegadas tarde personalizadas para el admin
-      let lateArrivals = 0;
-      const checkIns = await db.query(
-        `SELECT timestamp::timestamp as ts, EXTRACT(DOW FROM timestamp::timestamp) as dow
-         FROM attendance_records 
-         WHERE user_id = $1 AND type = 'check_in'
-         AND EXTRACT(MONTH FROM timestamp::timestamp) = EXTRACT(MONTH FROM CURRENT_DATE)
-         AND EXTRACT(YEAR FROM timestamp::timestamp) = EXTRACT(YEAR FROM CURRENT_DATE)`,
-        [admin.userId]
-      );
+    // Dias trabajados y promedios del mes seleccionado
+    const monthStats = await db.query(
+      `SELECT 
+        COUNT(DISTINCT DATE(timestamp::timestamp)) as days_worked,
+        AVG(CASE WHEN type = 'check_in' 
+          THEN EXTRACT(HOUR FROM timestamp::timestamp) * 60 + EXTRACT(MINUTE FROM timestamp::timestamp) 
+          END) as avg_check_in_minutes,
+        AVG(CASE WHEN type = 'check_out' 
+          THEN EXTRACT(HOUR FROM timestamp::timestamp) * 60 + EXTRACT(MINUTE FROM timestamp::timestamp) 
+          END) as avg_check_out_minutes
+       FROM attendance_records 
+       WHERE user_id = $1 
+       AND EXTRACT(MONTH FROM timestamp::timestamp) = $2
+       AND EXTRACT(YEAR FROM timestamp::timestamp) = $3`,
+      [userId, month, year]
+    );
 
-      for (const record of checkIns.rows) {
-        const dayOfWeek = record.dow;
-        const schedule = schedules.rows.find((s: any) => s.day_of_week === dayOfWeek);
+    // Calcular llegadas tarde del mes seleccionado segun horario personalizado
+    let lateArrivals = 0;
+    const checkIns = await db.query(
+      `SELECT timestamp::timestamp as ts, EXTRACT(DOW FROM timestamp::timestamp) as dow
+       FROM attendance_records 
+       WHERE user_id = $1 AND type = 'check_in'
+       AND EXTRACT(MONTH FROM timestamp::timestamp) = $2
+       AND EXTRACT(YEAR FROM timestamp::timestamp) = $3`,
+      [userId, month, year]
+    );
+
+    for (const record of checkIns.rows) {
+      const dayOfWeek = record.dow;
+      const schedule = schedules.rows.find((s: any) => s.day_of_week === dayOfWeek);
+      
+      if (schedule) {
+        const checkInTime = new Date(record.ts);
+        const checkInMinutes = checkInTime.getHours() * 60 + checkInTime.getMinutes();
         
-        if (schedule) {
-          const checkInTime = new Date(record.ts);
-          const checkInMinutes = checkInTime.getHours() * 60 + checkInTime.getMinutes();
-          
-          const startParts = schedule.start_time.split(':');
-          const startMinutes = parseInt(startParts[0]) * 60 + parseInt(startParts[1]);
-          const toleranceMinutes = schedule.tolerance_minutes || 15;
-          
-          if (checkInMinutes > startMinutes + toleranceMinutes) {
-            lateArrivals++;
+        const startParts = schedule.start_time.split(':');
+        const startMinutes = parseInt(startParts[0]) * 60 + parseInt(startParts[1]);
+        const toleranceMinutes = schedule.tolerance_minutes || 15;
+        
+        if (checkInMinutes > startMinutes + toleranceMinutes) {
+          lateArrivals++;
+        }
+      }
+    }
+
+    // Horas trabajadas del mes (suma de todas las horas)
+    let totalHoursThisMonth = 0;
+    const allMonthRecords = await db.query(
+      `SELECT * FROM attendance_records 
+       WHERE user_id = $1 
+       AND EXTRACT(MONTH FROM timestamp::timestamp) = $2
+       AND EXTRACT(YEAR FROM timestamp::timestamp) = $3
+       ORDER BY DATE(timestamp::timestamp), timestamp::timestamp`,
+      [userId, month, year]
+    );
+
+    // Agrupar por dia para calcular horas
+    const recordsByDate: Record<string, any[]> = {};
+    for (const record of allMonthRecords.rows) {
+      const dateKey = new Date(record.timestamp).toISOString().split('T')[0];
+      if (!recordsByDate[dateKey]) recordsByDate[dateKey] = [];
+      recordsByDate[dateKey].push(record);
+    }
+
+    for (const [dateKey, dayRecords] of Object.entries(recordsByDate)) {
+      const checkIn = dayRecords.find((r: any) => r.type === 'check_in');
+      const checkOut = dayRecords.find((r: any) => r.type === 'check_out');
+      
+      if (checkIn && checkOut) {
+        const diff = new Date(checkOut.timestamp).getTime() - new Date(checkIn.timestamp).getTime();
+        
+        const dayOfWeek = new Date(dateKey + 'T12:00:00').getDay();
+        const daySchedule = schedules.rows.find((s: any) => s.day_of_week === dayOfWeek);
+        
+        let lunchTime = 0;
+        if (daySchedule) {
+          const startHour = parseInt(daySchedule.start_time.split(':')[0]);
+          const endHour = parseInt(daySchedule.end_time.split(':')[0]);
+          if (endHour - startHour > 5) {
+            const lunchOut = dayRecords.find((r: any) => r.type === 'lunch_out');
+            const lunchIn = dayRecords.find((r: any) => r.type === 'lunch_in');
+            if (lunchOut && lunchIn) {
+              lunchTime = new Date(lunchIn.timestamp).getTime() - new Date(lunchOut.timestamp).getTime();
+            }
+          }
+        }
+
+        totalHoursThisMonth += (diff - lunchTime) / (1000 * 60 * 60);
+      }
+    }
+
+    // Horas trabajadas hoy (siempre del dia actual)
+    const todayRecords = await db.query(
+      `SELECT * FROM attendance_records 
+       WHERE user_id = $1 AND DATE(timestamp::timestamp) = $2 
+       ORDER BY timestamp::timestamp`,
+      [userId, today]
+    );
+
+    let totalHoursToday = 0;
+    const todayCheckIn = todayRecords.rows.find((r: any) => r.type === 'check_in');
+    const todayCheckOut = todayRecords.rows.find((r: any) => r.type === 'check_out');
+
+    if (todayCheckIn && todayCheckOut) {
+      const diff = new Date(todayCheckOut.timestamp).getTime() - new Date(todayCheckIn.timestamp).getTime();
+      
+      const dayOfWeek = new Date(today + 'T12:00:00').getDay();
+      const todaySchedule = schedules.rows.find((s: any) => s.day_of_week === dayOfWeek);
+      
+      let lunchTime = 0;
+      if (todaySchedule) {
+        const startHour = parseInt(todaySchedule.start_time.split(':')[0]);
+        const endHour = parseInt(todaySchedule.end_time.split(':')[0]);
+        if (endHour - startHour > 5) {
+          const lunchOut = todayRecords.rows.find((r: any) => r.type === 'lunch_out');
+          const lunchIn = todayRecords.rows.find((r: any) => r.type === 'lunch_in');
+          if (lunchOut && lunchIn) {
+            lunchTime = new Date(lunchIn.timestamp).getTime() - new Date(lunchOut.timestamp).getTime();
           }
         }
       }
 
-      const row = stats.rows[0];
-
-      return NextResponse.json({
-        daysWorked: parseInt(row.days_worked) || 0,
-        averageCheckIn: row.avg_check_in ? formatHour(row.avg_check_in) : '--:--',
-        averageCheckOut: row.avg_check_out ? formatHour(row.avg_check_out) : '--:--',
-        totalHoursToday: 0,
-        lateArrivals: lateArrivals,
-      });
+      totalHoursToday = (diff - lunchTime) / (1000 * 60 * 60);
     }
 
-    // Estadisticas globales
-    const [userStats, attendanceStats, companiesStats] = await Promise.all([
-      db.query('SELECT COUNT(*) as total, COUNT(CASE WHEN is_active THEN 1 END) as active FROM users'),
-      db.query(`
-        SELECT 
-          COUNT(DISTINCT CASE WHEN DATE(ar.timestamp::timestamp) = $1 THEN ar.user_id END) as present_today
-        FROM attendance_records ar
-      `, [today]),
-      db.query('SELECT COUNT(*) as total FROM companies'),
-    ]);
+    const formatMinutes = (minutes: number | null): string => {
+      if (!minutes) return '--:--';
+      const h = Math.floor(minutes / 60);
+      const m = Math.round(minutes % 60);
+      return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+    };
 
-    // Llegadas tarde globales usando horarios personalizados
-    const lateArrivalsQuery = await db.query(`
-      SELECT COUNT(DISTINCT ar.user_id) as late_arrivals
-      FROM attendance_records ar
-      JOIN work_schedules ws ON ar.user_id = ws.user_id 
-        AND ws.day_of_week = EXTRACT(DOW FROM ar.timestamp::timestamp)
-        AND ws.is_active = true
-      WHERE ar.type = 'check_in' 
-        AND DATE(ar.timestamp::timestamp) = $1
-        AND (
-          EXTRACT(HOUR FROM ar.timestamp::timestamp) * 60 + EXTRACT(MINUTE FROM ar.timestamp::timestamp)
-          > 
-          (EXTRACT(HOUR FROM ws.start_time::time) * 60 + EXTRACT(MINUTE FROM ws.start_time::time) + ws.tolerance_minutes)
-        )
-    `, [today]);
-
-    const totalUsers = parseInt(userStats.rows[0].total);
-    const activeUsers = parseInt(userStats.rows[0].active);
-    const presentToday = parseInt(attendanceStats.rows[0].present_today);
-    const lateArrivals = parseInt(lateArrivalsQuery.rows[0]?.late_arrivals || '0');
+    const row = monthStats.rows[0];
 
     return NextResponse.json({
-      totalUsers,
-      activeUsers,
-      inactiveUsers: totalUsers - activeUsers,
-      presentToday,
-      absentToday: activeUsers - presentToday,
-      lateArrivals,
-      averageCheckIn: '--:--',
-      averageCheckOut: '--:--',
-      totalHoursToday: 0,
-      companiesCount: parseInt(companiesStats.rows[0].total),
+      daysWorkedThisMonth: parseInt(row.days_worked) || 0,
+      averageCheckIn: formatMinutes(row.avg_check_in_minutes),
+      averageCheckOut: formatMinutes(row.avg_check_out_minutes),
+      totalHoursThisMonth: Math.round(totalHoursThisMonth * 100) / 100,
+      lateArrivals: lateArrivals,
+      lunchTimeAverage: '--:--',
+      totalHoursToday: Math.round(totalHoursToday * 100) / 100,
     });
   } catch (error) {
     console.error('Error al obtener estadisticas:', error);
-    return NextResponse.json({ error: 'Error interno' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Error interno del servidor' },
+      { status: 500 }
+    );
   }
 }
-
-function formatHour(decimal: number): string {
-  const hours = Math.floor(decimal);
-  const minutes = Math.round((decimal - hours) * 60);
-  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-} 
