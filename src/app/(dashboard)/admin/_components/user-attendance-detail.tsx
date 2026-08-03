@@ -6,7 +6,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Clock, User, MapPin, Edit3, Coffee, LogIn, LogOut, ArrowLeft } from 'lucide-react';
+import { Calendar, Clock, User, MapPin, Edit3, Coffee, LogIn, LogOut, ArrowLeft, Pause, Play, UserCheck } from 'lucide-react';
 import { EditAttendanceModal } from './edit-attendance-modal';
 import { LocationViewer } from './location-viewer';
 import { useGSAP } from '@gsap/react';
@@ -81,12 +81,25 @@ export function UserAttendanceDetail({ isOpen, onClose, userId, userName }: User
       case 'lunch_out': return <Coffee className="w-4 h-4 text-orange-500" />;
       case 'lunch_in': return <Coffee className="w-4 h-4 text-green-500" />;
       case 'check_out': return <LogOut className="w-4 h-4 text-red-500" />;
+      case 'active_break_start': return <Pause className="w-4 h-4 text-purple-500" />;
+      case 'active_break_end': return <Play className="w-4 h-4 text-purple-500" />;
+      case 'bathroom_start': return <User className="w-4 h-4 text-teal-500" />;
+      case 'bathroom_end': return <UserCheck className="w-4 h-4 text-teal-500" />;
       default: return <Clock className="w-4 h-4" />;
     }
   };
 
   const getTypeLabel = (type: string): string => {
-    const labels: Record<string, string> = { check_in: 'Entrada', lunch_out: 'Salida comida', lunch_in: 'Regreso comida', check_out: 'Salida' };
+    const labels: Record<string, string> = { 
+      check_in: 'Entrada', 
+      lunch_out: 'Salida comida', 
+      lunch_in: 'Regreso comida', 
+      check_out: 'Salida',
+      active_break_start: 'Entrar pausa activa',
+      active_break_end: 'Salir pausa activa',
+      bathroom_start: 'Ir al baño',
+      bathroom_end: 'Salir del baño'
+    };
     return labels[type] || type;
   };
 

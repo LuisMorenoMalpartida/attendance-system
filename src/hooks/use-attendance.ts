@@ -53,7 +53,7 @@ export function useAttendance() {
     );
   };
 
-  const registerAttendance = async (type: 'check_in' | 'lunch_out' | 'lunch_in' | 'check_out') => {
+  const registerAttendance = async (type: 'check_in' | 'lunch_out' | 'lunch_in' | 'check_out' | 'active_break_start' | 'active_break_end' | 'bathroom_start' | 'bathroom_end') => {
     if (!location) {
       throw new Error('No se pudo obtener la ubicación. Activa el GPS e intenta de nuevo.');
     }

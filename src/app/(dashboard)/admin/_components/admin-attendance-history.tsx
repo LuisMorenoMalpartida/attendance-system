@@ -16,7 +16,9 @@ import {
     Download,
     Plus,
     MapPin,
-    X
+    X,
+    Pause,
+    Play
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { LocationViewer } from './location-viewer';
@@ -38,7 +40,7 @@ interface AttendanceRecord {
     id: number;
     user_id: number;
     user_name: string;
-    type: 'check_in' | 'lunch_out' | 'lunch_in' | 'check_out';
+    type: 'check_in' | 'lunch_out' | 'lunch_in' | 'check_out' | 'active_break_start' | 'active_break_end' | 'bathroom_start' | 'bathroom_end';
     timestamp: string;
     notes: string | null;
     is_manual: boolean;
@@ -165,6 +167,8 @@ export function AdminAttendanceHistory({ isOwnAttendance }: AdminAttendanceHisto
             case 'lunch_out': return <Coffee className="w-4 h-4 text-orange-500" />;
             case 'lunch_in': return <Coffee className="w-4 h-4 text-green-500" />;
             case 'check_out': return <LogOut className="w-4 h-4 text-red-500" />;
+            case 'active_break_start': return <Pause className="w-4 h-4 text-purple-500" />;
+            case 'active_break_end': return <Play className="w-4 h-4 text-purple-500" />;
             default: return <AlertCircle className="w-4 h-4" />;
         }
     };
@@ -175,6 +179,10 @@ export function AdminAttendanceHistory({ isOwnAttendance }: AdminAttendanceHisto
             lunch_out: 'Salida comida',
             lunch_in: 'Regreso comida',
             check_out: 'Salida',
+            active_break_start: 'Entrar pausa activa',
+            active_break_end: 'Salir pausa activa',
+            bathroom_start: 'Ir al baño',
+            bathroom_end: 'Salir del baño',
         };
         return labels[type] || type;
     };
@@ -185,6 +193,10 @@ export function AdminAttendanceHistory({ isOwnAttendance }: AdminAttendanceHisto
             lunch_out: 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400',
             lunch_in: 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400',
             check_out: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400',
+            active_break_start: 'bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-400',
+            active_break_end: 'bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-400',
+            bathroom_start: 'bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-400',
+            bathroom_end: 'bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-400',
         };
         return colors[type] || '';
     };
@@ -269,6 +281,10 @@ export function AdminAttendanceHistory({ isOwnAttendance }: AdminAttendanceHisto
                                     <SelectItem value="lunch_out">Salida comida</SelectItem>
                                     <SelectItem value="lunch_in">Regreso comida</SelectItem>
                                     <SelectItem value="check_out">Salida</SelectItem>
+                                    <SelectItem value="active_break_start">Entrar pausa activa</SelectItem>
+                                    <SelectItem value="active_break_end">Salir pausa activa</SelectItem>
+                                    <SelectItem value="bathroom_start">Ir al baño</SelectItem>
+                                    <SelectItem value="bathroom_end">Salir del baño</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>

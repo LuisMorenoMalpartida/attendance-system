@@ -26,6 +26,10 @@ export const attendanceTypeEnum = pgEnum("attendance_type", [
   "lunch_out",
   "lunch_in",
   "check_out",
+  "active_break_start",
+  "active_break_end",
+  "bathroom_start",
+  "bathroom_end",
 ]);
 
 export const absenceTypeEnum = pgEnum("absence_type", [

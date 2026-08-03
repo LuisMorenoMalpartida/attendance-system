@@ -36,7 +36,7 @@ export const userSchema = z.object({
 });
 
 export const attendanceSchema = z.object({
-  type: z.enum(['check_in', 'lunch_out', 'lunch_in', 'check_out']),
+  type: z.enum(['check_in', 'lunch_out', 'lunch_in', 'check_out', 'active_break_start', 'active_break_end', 'bathroom_start', 'bathroom_end']),
   latitude: z.number().min(-90).max(90).nullable().optional(),
   longitude: z.number().min(-180).max(180).nullable().optional(),
   deviceInfo: z.string().max(500).nullable().optional(),

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Calendar, ChevronLeft, ChevronRight, LogIn, LogOut, Coffee, AlertCircle, Edit3, Send, X } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, LogIn, LogOut, Coffee, AlertCircle, Edit3, Send, X, Pause, Play, User, UserCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useGSAP } from '@gsap/react';
@@ -12,7 +12,7 @@ import { formatTime, formatDate, formatHoursWorked, formatMonthYear } from '@/li
 
 interface AttendanceRecord {
   id: number;
-  type: 'check_in' | 'lunch_out' | 'lunch_in' | 'check_out';
+  type: 'check_in' | 'lunch_out' | 'lunch_in' | 'check_out' | 'active_break_start' | 'active_break_end' | 'bathroom_start' | 'bathroom_end';
   timestamp: string;
   notes: string | null;
 }
@@ -67,6 +67,10 @@ export function AttendanceHistory() {
       case 'lunch_out': return <Coffee className="w-4 h-4 text-orange-500" />;
       case 'lunch_in': return <Coffee className="w-4 h-4 text-green-500" />;
       case 'check_out': return <LogOut className="w-4 h-4 text-red-500" />;
+      case 'active_break_start': return <Pause className="w-4 h-4 text-purple-500" />;
+      case 'active_break_end': return <Play className="w-4 h-4 text-purple-500" />;
+      case 'bathroom_start': return <User className="w-4 h-4 text-teal-500" />;
+      case 'bathroom_end': return <UserCheck className="w-4 h-4 text-teal-500" />;
       default: return <AlertCircle className="w-4 h-4" />;
     }
   };
@@ -76,7 +80,11 @@ export function AttendanceHistory() {
       check_in: 'Entrada', 
       lunch_out: 'Salida comida', 
       lunch_in: 'Regreso comida', 
-      check_out: 'Salida' 
+      check_out: 'Salida',
+      active_break_start: 'Entrar pausa activa',
+      active_break_end: 'Salir pausa activa',
+      bathroom_start: 'Ir al baño',
+      bathroom_end: 'Salir del baño'
     };
     return labels[type] || type;
   };
@@ -330,5 +338,3 @@ export function AttendanceHistory() {
     </>
   );
 }
-
-//comentario XD

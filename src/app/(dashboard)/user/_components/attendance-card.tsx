@@ -9,13 +9,17 @@ import {
   MapPin,
   AlertCircle,
   CheckCircle2,
-  Clock
+  Clock,
+  Pause,
+  Play,
+  User,
+  UserCheck,
 } from 'lucide-react';
 import { useGSAP } from '@gsap/react';
 import { getPeruNowTimestamp, formatTime } from '@/lib/date-utils';
 import gsap from 'gsap';
 
-type AttendanceType = 'check_in' | 'lunch_out' | 'lunch_in' | 'check_out';
+type AttendanceType = 'check_in' | 'lunch_out' | 'lunch_in' | 'check_out' | 'active_break_start' | 'active_break_end' | 'bathroom_start' | 'bathroom_end';
 
 interface LastRecord {
   type: AttendanceType;
@@ -211,22 +215,31 @@ export function AttendanceCard() {
   const getTypeLabel = (type: AttendanceType): string => {
     const labels: Record<AttendanceType, string> = {
       check_in: 'Entrada',
-      lunch_out: 'Salida a comer',
-      lunch_in: 'Regreso de comer',
+      lunch_out: 'Salida Comida',
+      lunch_in: 'Regreso Comida',
       check_out: 'Salida',
+      active_break_start: 'Entrar Pausa Activa',
+      active_break_end: 'Salir Pausa Activa',
+      bathroom_start: 'Ir al Baño',
+      bathroom_end: 'Salir del Baño',
     };
     return labels[type];
   };
 
   const getNextAction = (): AttendanceType | null => {
-    if (!lastRecord) return 'check_in';
-    const flow: Record<AttendanceType, AttendanceType> = {
+    const principalTypes: AttendanceType[] = ['check_in', 'lunch_out', 'lunch_in', 'check_out'];
+    const lastPrincipal = todayData?.todayRecords
+      ?.filter((r: any) => principalTypes.includes(r.type))
+      .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+
+    if (!lastPrincipal) return 'check_in';
+    const flow: Record<string, AttendanceType> = {
       check_in: 'lunch_out',
       lunch_out: 'lunch_in',
       lunch_in: 'check_out',
       check_out: 'check_in',
     };
-    return flow[lastRecord.type] || 'check_in';
+    return flow[lastPrincipal.type] || 'check_in';
   };
 
   const isButtonDisabled = (type: AttendanceType): boolean => {
@@ -246,6 +259,24 @@ export function AttendanceCard() {
     const nextAction = getNextAction();
     if (!nextAction) return false;
     return type !== nextAction;
+  };
+
+  const hasOpenBreak = (startType: string, endType: string): boolean => {
+    if (!todayData?.todayRecords) return false;
+    const records = todayData.todayRecords;
+    const starts = records.filter((r: any) => r.type === startType);
+    const ends = records.filter((r: any) => r.type === endType);
+    return starts.length > ends.length;
+  };
+
+  const isBreakButtonDisabled = (type: AttendanceType): boolean => {
+    if (loading) return true;
+    if (isSunday) return true;
+    if (type === 'active_break_start') return hasOpenBreak('active_break_start', 'active_break_end');
+    if (type === 'active_break_end') return !hasOpenBreak('active_break_start', 'active_break_end');
+    if (type === 'bathroom_start') return hasOpenBreak('bathroom_start', 'bathroom_end');
+    if (type === 'bathroom_end') return !hasOpenBreak('bathroom_start', 'bathroom_end');
+    return false;
   };
 
   // Obtener horario de hoy
@@ -407,6 +438,43 @@ export function AttendanceCard() {
               <span>Salida</span>
             </div>
           </button>
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-dashed border-slate-200 dark:border-slate-700">
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-3 uppercase tracking-wider">Pausas opcionales</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <button onClick={() => handleAttendanceRecord('active_break_start')} disabled={isBreakButtonDisabled('active_break_start')}
+              className={`attendance-action relative overflow-hidden p-3 rounded-xl font-medium transition-all duration-300 border-2 ${isBreakButtonDisabled('active_break_start') ? 'opacity-50 cursor-not-allowed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-400' : 'border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/40'}`}>
+              <div className="relative z-10 flex items-center justify-center gap-2">
+                {loading === 'active_break_start' ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <Pause className="w-4 h-4" />}
+                <span className="text-sm">Entrar Pausa</span>
+              </div>
+            </button>
+
+            <button onClick={() => handleAttendanceRecord('active_break_end')} disabled={isBreakButtonDisabled('active_break_end')}
+              className={`attendance-action relative overflow-hidden p-3 rounded-xl font-medium transition-all duration-300 border-2 ${isBreakButtonDisabled('active_break_end') ? 'opacity-50 cursor-not-allowed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-400' : 'border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/40'}`}>
+              <div className="relative z-10 flex items-center justify-center gap-2">
+                {loading === 'active_break_end' ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <Play className="w-4 h-4" />}
+                <span className="text-sm">Salir Pausa</span>
+              </div>
+            </button>
+
+            <button onClick={() => handleAttendanceRecord('bathroom_start')} disabled={isBreakButtonDisabled('bathroom_start')}
+              className={`attendance-action relative overflow-hidden p-3 rounded-xl font-medium transition-all duration-300 border-2 ${isBreakButtonDisabled('bathroom_start') ? 'opacity-50 cursor-not-allowed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-400' : 'border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900/40'}`}>
+              <div className="relative z-10 flex items-center justify-center gap-2">
+                {loading === 'bathroom_start' ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <User className="w-4 h-4" />}
+                <span className="text-sm">Ir al Baño</span>
+              </div>
+            </button>
+
+            <button onClick={() => handleAttendanceRecord('bathroom_end')} disabled={isBreakButtonDisabled('bathroom_end')}
+              className={`attendance-action relative overflow-hidden p-3 rounded-xl font-medium transition-all duration-300 border-2 ${isBreakButtonDisabled('bathroom_end') ? 'opacity-50 cursor-not-allowed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-400' : 'border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900/40'}`}>
+              <div className="relative z-10 flex items-center justify-center gap-2">
+                {loading === 'bathroom_end' ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <UserCheck className="w-4 h-4" />}
+                <span className="text-sm">Salir Baño</span>
+              </div>
+            </button>
+          </div>
         </div>
       </div>
     </div>

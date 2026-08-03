@@ -78,10 +78,14 @@ async function validateFlow(userId: number, type: string, date: string) {
   const types = records.rows.map((r: any) => r.type);
 
   const rules: Record<string, { requires: string[]; blocked: string[]; msg: string }> = {
-    check_in:    { requires: [],           blocked: ['check_in'],              msg: 'Ya registraste tu entrada hoy' },
-    lunch_out:   { requires: ['check_in'], blocked: ['lunch_out', 'check_out'], msg: 'Debes registrar tu entrada primero' },
-    lunch_in:    { requires: ['lunch_out'],blocked: ['lunch_in'],              msg: 'Debes registrar salida a comer primero' },
-    check_out:   { requires: ['check_in'], blocked: ['check_out'],             msg: 'Debes registrar tu entrada primero' },
+    check_in:           { requires: [],            blocked: ['check_in'],            msg: 'Ya registraste tu entrada hoy' },
+    lunch_out:          { requires: ['check_in'],   blocked: ['lunch_out', 'check_out'], msg: 'Debes registrar tu entrada primero' },
+    lunch_in:           { requires: ['lunch_out'],  blocked: ['lunch_in'],            msg: 'Debes registrar salida a comer primero' },
+    check_out:          { requires: ['check_in'],   blocked: ['check_out'],           msg: 'Debes registrar tu entrada primero' },
+    active_break_start: { requires: [],            blocked: ['active_break_start'],  msg: 'Ya tienes una pausa activa en curso' },
+    active_break_end:   { requires: ['active_break_start'], blocked: ['active_break_end'], msg: 'No has iniciado una pausa activa' },
+    bathroom_start:     { requires: [],            blocked: ['bathroom_start'],      msg: 'Ya tienes una salida al baño en curso' },
+    bathroom_end:       { requires: ['bathroom_start'], blocked: ['bathroom_end'],    msg: 'No has iniciado una salida al baño' },
   };
 
   const rule = rules[type];

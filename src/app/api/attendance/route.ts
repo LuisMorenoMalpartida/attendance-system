@@ -58,7 +58,7 @@ function getPeruToday(): string {
 // ============================================================
 // VALIDACION DE FLUJO CON SOPORTE PARA HORARIOS PERSONALIZADOS
 // ============================================================
-async function validateFlow(userId: number, type: string, date: string) {
+async function validateFlow(userId: number, type: string, date: string, timestamp?: string) {
   const dayOfWeek = new Date(date + 'T12:00:00').getDay();
   
   // Obtener horario del usuario para este dia
@@ -165,6 +165,57 @@ async function validateFlow(userId: number, type: string, date: string) {
         return { valid: false, message: 'Debes registrar tu regreso de comer primero' };
       }
       break;
+    case 'active_break_start': {
+      const openBreakStart = types.filter((t: string) => t === 'active_break_start').length;
+      const openBreakEnd = types.filter((t: string) => t === 'active_break_end').length;
+      if (openBreakStart > openBreakEnd) {
+        return { valid: false, message: 'Ya tienes una pausa activa en curso' };
+      }
+      break;
+    }
+    case 'active_break_end': {
+      const starts = records.rows.filter((r: any) => r.type === 'active_break_start');
+      const ends = records.rows.filter((r: any) => r.type === 'active_break_end');
+      if (starts.length <= ends.length) {
+        return { valid: false, message: 'No has iniciado una pausa activa' };
+      }
+      const openStart = starts[starts.length - 1];
+      const startTime = new Date(openStart.timestamp).getTime();
+      const endTime = new Date(timestamp || getPeruNowTimestamp()).getTime();
+      const minutes = Math.round((endTime - startTime) / 60000);
+      if (minutes > 10) {
+        return { valid: false, message: `La pausa activa no puede exceder 10 minutos (${minutes} min)` };
+      }
+      break;
+    }
+    case 'bathroom_start': {
+      const openBathStart = types.filter((t: string) => t === 'bathroom_start').length;
+      const openBathEnd = types.filter((t: string) => t === 'bathroom_end').length;
+      if (openBathStart > openBathEnd) {
+        return { valid: false, message: 'Ya tienes una salida al baño en curso' };
+      }
+      break;
+    }
+    case 'bathroom_end': {
+      const starts = types.filter((t: string) => t === 'bathroom_start');
+      const ends = types.filter((t: string) => t === 'bathroom_end');
+      if (starts.length <= ends.length) {
+        return { valid: false, message: 'No has iniciado una salida al baño' };
+      }
+      const openStart = records.rows.filter((r: any) => r.type === 'bathroom_start');
+      const openEnd = records.rows.filter((r: any) => r.type === 'bathroom_end');
+      if (openStart.length <= openEnd.length) {
+        return { valid: false, message: 'No has iniciado una salida al baño' };
+      }
+      const lastStart = openStart[openStart.length - 1];
+      const startTime = new Date(lastStart.timestamp).getTime();
+      const endTime = new Date(timestamp || getPeruNowTimestamp()).getTime();
+      const minutes = Math.round((endTime - startTime) / 60000);
+      if (minutes > 5) {
+        return { valid: false, message: `La salida al baño no puede exceder 5 minutos (${minutes} min)` };
+      }
+      break;
+    }
     default:
       return { valid: false, message: 'Tipo de registro no valido' };
   }
@@ -247,7 +298,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Validar flujo diario (incluye validacion de sabados y horarios personalizados)
-    const validFlow = await validateFlow(user.userId as number, type, today);
+    const validFlow = await validateFlow(user.userId as number, type, today, localTimestamp);
     if (!validFlow.valid) {
       return NextResponse.json(
         { error: validFlow.message },

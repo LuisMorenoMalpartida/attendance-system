@@ -37,7 +37,7 @@ interface UserOption {
     name: string;
 }
 
-type AttendanceType = 'check_in' | 'lunch_out' | 'lunch_in' | 'check_out';
+type AttendanceType = 'check_in' | 'lunch_out' | 'lunch_in' | 'check_out' | 'active_break_start' | 'active_break_end' | 'bathroom_start' | 'bathroom_end';
 
 interface FormData {
     userId: string;
@@ -226,6 +226,10 @@ export function CreateManualRecord({
                                 <SelectItem value="lunch_out">Salida Comida</SelectItem>
                                 <SelectItem value="lunch_in">Regreso Comida</SelectItem>
                                 <SelectItem value="check_out">Salida</SelectItem>
+                                <SelectItem value="active_break_start">Entrar Pausa Activa</SelectItem>
+                                <SelectItem value="active_break_end">Salir Pausa Activa</SelectItem>
+                                <SelectItem value="bathroom_start">Ir al Baño</SelectItem>
+                                <SelectItem value="bathroom_end">Salir del Baño</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>

@@ -19,6 +19,8 @@ import {
     MapPin,
     Edit3,
     Plus,
+    Pause,
+    Play,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -413,6 +415,8 @@ export function AttendanceCalendarView() {
             case 'lunch_out': return <Coffee className="w-3 h-3 text-orange-500" />;
             case 'lunch_in': return <Coffee className="w-3 h-3 text-green-500" />;
             case 'check_out': return <LogOut className="w-3 h-3 text-red-500" />;
+            case 'active_break_start': return <Pause className="w-3 h-3 text-purple-500" />;
+            case 'active_break_end': return <Play className="w-3 h-3 text-purple-500" />;
             default: return <Clock className="w-3 h-3" />;
         }
     };
@@ -423,6 +427,10 @@ export function AttendanceCalendarView() {
             lunch_out: 'Salida comida',
             lunch_in: 'Regreso comida',
             check_out: 'Salida',
+            active_break_start: 'Entrar pausa activa',
+            active_break_end: 'Salir pausa activa',
+            bathroom_start: 'Ir al baño',
+            bathroom_end: 'Salir del baño',
         };
         return labels[type] || type;
     };
@@ -449,6 +457,10 @@ export function AttendanceCalendarView() {
                 { header: 'Salida Comida', key: 'salida_comida', width: 14 },
                 { header: 'Regreso Comida', key: 'regreso_comida', width: 14 },
                 { header: 'Salida', key: 'salida', width: 12 },
+                { header: 'Entrar Pausa', key: 'entrar_pausa', width: 14 },
+                { header: 'Salir Pausa', key: 'salir_pausa', width: 14 },
+                { header: 'Ir Baño', key: 'ir_bano', width: 12 },
+                { header: 'Salir Baño', key: 'salir_bano', width: 12 },
                 { header: 'Horas Trab.', key: 'horas', width: 14 },
                 { header: 'Notas', key: 'notas', width: 30 },
             ];
@@ -456,7 +468,7 @@ export function AttendanceCalendarView() {
             const userName = users.find(u => u.id.toString() === selectedUser)?.name || 'Usuario';
             const monthName = currentDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
 
-            worksheet.mergeCells('A1:J1');
+            worksheet.mergeCells('A1:N1');
             const titleCell = worksheet.getCell('A1');
             titleCell.value = `Reporte de Asistencia - ${userName} - ${monthName}`;
             titleCell.font = { name: 'Arial', size: 14, bold: true, color: { argb: '1E40AF' } };
@@ -464,7 +476,7 @@ export function AttendanceCalendarView() {
             titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'DBEAFE' } };
             worksheet.getRow(1).height = 30;
 
-            worksheet.mergeCells('A2:J2');
+            worksheet.mergeCells('A2:N2');
             const totalDays = monthData.length;
             const completeDays = monthData.filter(d => d.status.includes('complete')).length;
             const incompleteDays = monthData.filter(d => d.status.includes('incomplete')).length;
@@ -478,7 +490,7 @@ export function AttendanceCalendarView() {
             worksheet.getRow(2).height = 22;
 
             const headerRow = worksheet.getRow(4);
-            headerRow.values = ['Fecha', 'Día', 'Tipo', 'Estado', 'Entrada', 'Salida Comida', 'Regreso Comida', 'Salida', 'Horas Trab.', 'Notas'];
+            headerRow.values = ['Fecha', 'Día', 'Tipo', 'Estado', 'Entrada', 'Salida Comida', 'Regreso Comida', 'Salida', 'Entrar Pausa', 'Salir Pausa', 'Ir Baño', 'Salir Baño', 'Horas Trab.', 'Notas'];
             headerRow.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFF' } };
             headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '2563EB' } };
             headerRow.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
@@ -497,12 +509,16 @@ export function AttendanceCalendarView() {
                 const salidaComida = formatTime(day.records.find(r => r.type === 'lunch_out')?.timestamp);
                 const regresoComida = formatTime(day.records.find(r => r.type === 'lunch_in')?.timestamp);
                 const salida = formatTime(day.records.find(r => r.type === 'check_out')?.timestamp);
+                const entrarPausa = formatTime(day.records.find(r => r.type === 'active_break_start')?.timestamp);
+                const salirPausa = formatTime(day.records.find(r => r.type === 'active_break_end')?.timestamp);
+                const irBano = formatTime(day.records.find(r => r.type === 'bathroom_start')?.timestamp);
+                const salirBano = formatTime(day.records.find(r => r.type === 'bathroom_end')?.timestamp);
                 const horas = day.hoursWorked || 0;
                 totalHoras += horas;
                 const notas = day.records.map(r => r.notes).filter(Boolean).join('; ') || '';
 
                 const row = worksheet.getRow(currentRow);
-                row.values = [fechaFormato, diaSemana, tipo, estado, entrada, salidaComida, regresoComida, salida, horas.toFixed(2), notas];
+                row.values = [fechaFormato, diaSemana, tipo, estado, entrada, salidaComida, regresoComida, salida, entrarPausa, salirPausa, irBano, salirBano, horas.toFixed(2), notas];
                 row.font = { name: 'Arial', size: 10 };
                 row.alignment = { horizontal: 'center', vertical: 'middle' };
                 row.height = 22;
@@ -525,11 +541,11 @@ export function AttendanceCalendarView() {
             });
 
             const totalRow = worksheet.getRow(currentRow);
-            worksheet.mergeCells(`A${currentRow}:H${currentRow}`);
+            worksheet.mergeCells(`A${currentRow}:M${currentRow}`);
             totalRow.getCell(1).value = 'TOTALES';
             totalRow.getCell(1).font = { name: 'Arial', size: 11, bold: true };
             totalRow.getCell(1).alignment = { horizontal: 'right', vertical: 'middle' };
-            totalRow.getCell(9).value = totalHoras.toFixed(2);
+            totalRow.getCell(13).value = totalHoras.toFixed(2);
             totalRow.getCell(9).font = { name: 'Arial', size: 11, bold: true, color: { argb: '2563EB' } };
             totalRow.getCell(9).alignment = { horizontal: 'center' };
             totalRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'DBEAFE' } };
