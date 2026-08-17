@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
+import { useStatsStore, useScheduleStore, useAttendanceStore } from '@/stores';
 
 interface AttendanceStatsProps {
   currentDate: Date;
@@ -41,16 +42,15 @@ const DAY_NAMES: Record<number, string> = {
 };
 
 export function AttendanceStats({ currentDate, onMonthChange }: AttendanceStatsProps) {
-  const [stats, setStats] = useState<Stats>({
-    daysWorkedThisMonth: 0,
-    averageCheckIn: '--:--',
-    averageCheckOut: '--:--',
-    totalHoursThisMonth: 0,
-    lateArrivals: 0,
-    lunchTimeAverage: '--:--',
-  });
-  const [schedules, setSchedules] = useState<DaySchedule[]>([]);
+  const stats = useStatsStore((s) => s.stats);
+  const setStats = useStatsStore((s) => s.setStats);
+  const statsLoading = useStatsStore((s) => s.loading);
+  const setStatsLoading = useStatsStore((s) => s.setLoading);
+  const schedules = useScheduleStore((s) => s.schedules);
+  const setSchedules = useScheduleStore((s) => s.setSchedules);
   const [loading, setLoading] = useState(true);
+
+  const refreshTrigger = useAttendanceStore((s) => s.refreshTrigger);
 
   useEffect(() => {
     fetchSchedules();
@@ -58,7 +58,7 @@ export function AttendanceStats({ currentDate, onMonthChange }: AttendanceStatsP
 
   useEffect(() => {
     fetchStats();
-  }, [currentDate]);
+  }, [currentDate, refreshTrigger]);
 
   const fetchSchedules = async () => {
     try {

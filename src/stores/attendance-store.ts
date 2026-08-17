@@ -16,25 +16,28 @@ export interface AttendanceRecord {
 interface AttendanceState {
   todayRecords: AttendanceRecord[];
   lastRecord: AttendanceRecord | null;
-  loading: boolean;
+  loading: AttendanceType | null;
   error: string | null;
   success: string | null;
+  refreshTrigger: number;
   setTodayRecords: (records: AttendanceRecord[]) => void;
   setLastRecord: (record: AttendanceRecord | null) => void;
   addRecord: (record: AttendanceRecord) => void;
-  setLoading: (loading: boolean) => void;
+  setLoading: (loading: AttendanceType | null) => void;
   setError: (error: string | null) => void;
   setSuccess: (success: string | null) => void;
   clearMessages: () => void;
+  triggerRefresh: () => void;
   reset: () => void;
 }
 
 const initialState = {
   todayRecords: [],
   lastRecord: null,
-  loading: false,
+  loading: null,
   error: null,
   success: null,
+  refreshTrigger: 0,
 };
 
 export const useAttendanceStore = create<AttendanceState>()(
@@ -53,7 +56,8 @@ export const useAttendanceStore = create<AttendanceState>()(
         setError: (error) => set({ error }),
         setSuccess: (success) => set({ success }),
         clearMessages: () => set({ error: null, success: null }),
-        reset: () => set(initialState),
+        triggerRefresh: () => set((state) => ({ refreshTrigger: state.refreshTrigger + 1 })),
+        reset: () => set({ ...initialState, refreshTrigger: 0 }),
       }),
       {
         name: 'attendance-storage',

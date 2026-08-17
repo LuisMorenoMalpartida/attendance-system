@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
+import { useAttendanceStore } from '@/stores';
 import { CorrectionRequestModal } from './correction-request-modal';
 import { formatTime, formatDate, formatHoursWorked, formatMonthYear } from '@/lib/date-utils';
 
@@ -38,9 +39,10 @@ export function AttendanceHistory({ currentDate, onMonthChange }: AttendanceHist
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth() + 1;
+  const refreshTrigger = useAttendanceStore((s) => s.refreshTrigger);
 
   const { data: records = [], isLoading: loading } = useQuery({
-    queryKey: ['attendance-history', year, month],
+    queryKey: ['attendance-history', year, month, refreshTrigger],
     queryFn: async () => {
       const response = await fetch(`/api/attendance/history?year=${year}&month=${month}`);
       if (!response.ok) throw new Error('Error al cargar historial');

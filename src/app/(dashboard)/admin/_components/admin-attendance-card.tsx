@@ -167,6 +167,7 @@ export function AdminAttendanceCard() {
         const optimisticRecord = { id: Date.now(), type, timestamp: deviceTimestamp, notes: null, is_manual: false, latitude: currentLocation?.latitude ?? null, longitude: currentLocation?.longitude ?? null };
         addRecord(optimisticRecord);
       }
+      useAttendanceStore.getState().triggerRefresh();
       setSuccess(`${getTypeLabel(type)} registrado exitosamente!`);
       gsap.fromTo('.success-message',
         { scale: 0.8, opacity: 0 },
@@ -199,7 +200,7 @@ export function AdminAttendanceCard() {
       await queryClient.cancelQueries({ queryKey: ['attendance', today] });
       const optimisticRecord = { id: Date.now(), type: newRecord.type, timestamp: newRecord.timestamp, notes: null, is_manual: false, latitude: newRecord.latitude, longitude: newRecord.longitude };
       addRecord(optimisticRecord);
-      setLastRecord({ type: newRecord.type, timestamp: newRecord.timestamp });
+      setLastRecord({ id: Date.now(), type: newRecord.type, timestamp: newRecord.timestamp, notes: null, is_manual: false, latitude: newRecord.latitude, longitude: newRecord.longitude });
       return { previous: queryClient.getQueryData(['attendance', today]) };
     },
     onError: (err: unknown, newRecord: MutationPayload, context: any) => {

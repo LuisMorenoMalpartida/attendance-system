@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useGSAP } from '@gsap/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     Calendar,
@@ -32,7 +33,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { EditAttendanceModal } from './edit-attendance-modal';
 import { CreateManualRecord } from './create-manual-record';
-import { useGSAP } from '@gsap/react';
+import { useAttendanceStore } from '@/stores';
 import gsap from 'gsap';
 import { formatTime, formatDate, formatHoursWorked, formatMonthYear } from '@/lib/date-utils';
 
@@ -78,9 +79,10 @@ export function AdminAttendanceHistory({ isOwnAttendance, currentDate, onMonthCh
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth() + 1;
     const queryClient = useQueryClient();
+    const refreshTrigger = useAttendanceStore((s) => s.refreshTrigger);
 
     const { data: records = [], isLoading: loading, refetch: fetchRecords } = useQuery({
-        queryKey: ['admin-attendance-history', year, month, isOwnAttendance],
+        queryKey: ['admin-attendance-history', year, month, isOwnAttendance, refreshTrigger],
         queryFn: async () => {
             const params = new URLSearchParams({
                 year: year.toString(),

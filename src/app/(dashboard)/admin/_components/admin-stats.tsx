@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
+import { useStatsStore, useScheduleStore, useAttendanceStore } from '@/stores';
 
 interface Stats {
   totalUsers: number;
@@ -52,7 +53,7 @@ const DAY_NAMES: Record<number, string> = {
 };
 
 export function AdminStats({ isOwnStats, currentDate, onMonthChange }: AdminStatsProps) {
-  const [stats, setStats] = useState<Stats>({
+  const [adminStats, setAdminStats] = useState<Stats>({
     totalUsers: 0,
     activeUsers: 0,
     inactiveUsers: 0,
@@ -66,14 +67,14 @@ export function AdminStats({ isOwnStats, currentDate, onMonthChange }: AdminStat
   });
   const [schedules, setSchedules] = useState<DaySchedule[]>([]);
   const [loading, setLoading] = useState(true);
+  const refreshTrigger = useAttendanceStore((s) => s.refreshTrigger);
 
   useEffect(() => {
-    if (isOwnStats) fetchSchedules();
-  }, [isOwnStats]);
-
-  useEffect(() => {
+    if (isOwnStats) {
+      fetchSchedules();
+    }
     fetchStats();
-  }, [isOwnStats, currentDate]);
+  }, [isOwnStats, currentDate, refreshTrigger]);
 
   const fetchSchedules = async () => {
     try {
@@ -108,7 +109,7 @@ export function AdminStats({ isOwnStats, currentDate, onMonthChange }: AdminStat
       const response = await fetch(`/api/admin/stats?${params}`);
       if (response.ok) {
         const data = await response.json();
-        setStats(data);
+        setAdminStats(data);
       }
     } catch (error) {
       console.error('Error al cargar estadisticas:', error);
@@ -122,7 +123,7 @@ export function AdminStats({ isOwnStats, currentDate, onMonthChange }: AdminStat
       { opacity: 0, y: 20 },
       { opacity: 1, y: 0, duration: 0.4, stagger: 0.1, ease: 'power2.out' }
     );
-  }, [stats]);
+  }, [adminStats]);
 
   const changeMonth = (increment: number) => {
     onMonthChange(increment);
@@ -150,7 +151,7 @@ export function AdminStats({ isOwnStats, currentDate, onMonthChange }: AdminStat
   const globalStats = [
     {
       label: 'Total Usuarios',
-      value: stats.totalUsers,
+      value: adminStats.totalUsers,
       subtext: 'registrados',
       icon: Users,
       color: 'text-blue-600 dark:text-blue-400',
@@ -158,7 +159,7 @@ export function AdminStats({ isOwnStats, currentDate, onMonthChange }: AdminStat
     },
     {
       label: 'Usuarios Activos',
-      value: stats.activeUsers,
+      value: adminStats.activeUsers,
       subtext: 'en el sistema',
       icon: UserCheck,
       color: 'text-green-600 dark:text-green-400',
@@ -166,7 +167,7 @@ export function AdminStats({ isOwnStats, currentDate, onMonthChange }: AdminStat
     },
     {
       label: 'Presentes Hoy',
-      value: stats.presentToday,
+      value: adminStats.presentToday,
       subtext: 'marcaron entrada',
       icon: CalendarCheck,
       color: 'text-emerald-600 dark:text-emerald-400',
@@ -174,23 +175,23 @@ export function AdminStats({ isOwnStats, currentDate, onMonthChange }: AdminStat
     },
     {
       label: 'Ausentes Hoy',
-      value: stats.absentToday,
+      value: adminStats.absentToday,
       subtext: 'sin registrar',
       icon: UserX,
-      color: stats.absentToday > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400',
-      bg: stats.absentToday > 0 ? 'bg-red-50 dark:bg-red-950/50' : 'bg-green-50 dark:bg-green-950/50',
+      color: adminStats.absentToday > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400',
+      bg: adminStats.absentToday > 0 ? 'bg-red-50 dark:bg-red-950/50' : 'bg-green-50 dark:bg-green-950/50',
     },
     {
       label: 'Llegadas Tarde',
-      value: stats.lateArrivals,
+      value: adminStats.lateArrivals,
       subtext: 'hoy',
       icon: AlertTriangle,
-      color: stats.lateArrivals > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-green-600 dark:text-green-400',
-      bg: stats.lateArrivals > 0 ? 'bg-orange-50 dark:bg-orange-950/50' : 'bg-green-50 dark:bg-green-950/50',
+      color: adminStats.lateArrivals > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-green-600 dark:text-green-400',
+      bg: adminStats.lateArrivals > 0 ? 'bg-orange-50 dark:bg-orange-950/50' : 'bg-green-50 dark:bg-green-950/50',
     },
     {
       label: 'Empresas',
-      value: stats.companiesCount,
+      value: adminStats.companiesCount,
       subtext: 'registradas',
       icon: Building2,
       color: 'text-purple-600 dark:text-purple-400',
@@ -201,7 +202,7 @@ export function AdminStats({ isOwnStats, currentDate, onMonthChange }: AdminStat
   const personalStats = [
     {
       label: 'Dias trabajados',
-      value: stats.daysWorkedThisMonth || 0,
+      value: adminStats.daysWorkedThisMonth || 0,
       subtext: 'este mes',
       icon: CalendarCheck,
       color: 'text-blue-600 dark:text-blue-400',
@@ -209,7 +210,7 @@ export function AdminStats({ isOwnStats, currentDate, onMonthChange }: AdminStat
     },
     {
       label: 'Horas totales',
-      value: `${stats.totalHoursThisMonth || 0}h`,
+      value: `${adminStats.totalHoursThisMonth || 0}h`,
       subtext: 'este mes',
       icon: Clock,
       color: 'text-purple-600 dark:text-purple-400',
@@ -217,7 +218,7 @@ export function AdminStats({ isOwnStats, currentDate, onMonthChange }: AdminStat
     },
     {
       label: 'Entrada Promedio',
-      value: stats.averageCheckIn,
+      value: adminStats.averageCheckIn,
       subtext: 'este mes',
       icon: TrendingUp,
       color: 'text-blue-600 dark:text-blue-400',
@@ -225,7 +226,7 @@ export function AdminStats({ isOwnStats, currentDate, onMonthChange }: AdminStat
     },
     {
       label: 'Salida Promedio',
-      value: stats.averageCheckOut,
+      value: adminStats.averageCheckOut,
       subtext: 'este mes',
       icon: Timer,
       color: 'text-purple-600 dark:text-purple-400',
@@ -233,15 +234,15 @@ export function AdminStats({ isOwnStats, currentDate, onMonthChange }: AdminStat
     },
     {
       label: 'Llegadas Tarde',
-      value: stats.lateArrivals,
+      value: adminStats.lateArrivals,
       subtext: 'este mes',
       icon: AlertTriangle,
-      color: stats.lateArrivals > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400',
-      bg: stats.lateArrivals > 0 ? 'bg-red-50 dark:bg-red-950/50' : 'bg-green-50 dark:bg-green-950/50',
+      color: adminStats.lateArrivals > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400',
+      bg: adminStats.lateArrivals > 0 ? 'bg-red-50 dark:bg-red-950/50' : 'bg-green-50 dark:bg-green-950/50',
     },
     {
       label: 'Horas Hoy',
-      value: `${stats.totalHoursToday}h`,
+      value: `${adminStats.totalHoursToday}h`,
       subtext: 'acumuladas',
       icon: Clock,
       color: 'text-emerald-600 dark:text-emerald-400',
@@ -349,16 +350,16 @@ export function AdminStats({ isOwnStats, currentDate, onMonthChange }: AdminStat
               <div className="flex justify-between text-xs">
                 <span className="text-amber-600 dark:text-amber-400">Tasa de asistencia:</span>
                 <span className="font-medium text-amber-800 dark:text-amber-200">
-                  {stats.activeUsers > 0 
-                    ? `${Math.round((stats.presentToday / stats.activeUsers) * 100)}%` 
+                  {adminStats.activeUsers > 0 
+                    ? `${Math.round((adminStats.presentToday / adminStats.activeUsers) * 100)}%` 
                     : '0%'}
                 </span>
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-amber-600 dark:text-amber-400">Puntualidad:</span>
                 <span className="font-medium text-amber-800 dark:text-amber-200">
-                  {stats.presentToday > 0 
-                    ? `${Math.round(((stats.presentToday - stats.lateArrivals) / stats.presentToday) * 100)}%` 
+                  {adminStats.presentToday > 0 
+                    ? `${Math.round(((adminStats.presentToday - adminStats.lateArrivals) / adminStats.presentToday) * 100)}%` 
                     : '0%'}
                 </span>
               </div>
