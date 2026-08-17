@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useGSAP } from '@gsap/react';
 import { getPeruNowTimestamp, formatTime } from '@/lib/date-utils';
+import { useAttendanceStore, useScheduleStore } from '@/stores';
 import gsap from 'gsap';
 
 type AttendanceType = 'check_in' | 'lunch_out' | 'lunch_in' | 'check_out' | 'active_break_start' | 'active_break_end' | 'bathroom_start' | 'bathroom_end';
@@ -53,12 +54,21 @@ const DAY_NAMES: Record<number, string> = {
 
 export function AttendanceCard() {
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [lastRecord, setLastRecord] = useState<LastRecord | null>(null);
-  const [loading, setLoading] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const [schedules, setSchedules] = useState<DaySchedule[]>([]);
   const [showSchedule, setShowSchedule] = useState(false);
+
+  const todayRecords = useAttendanceStore((s) => s.todayRecords);
+  const lastRecord = useAttendanceStore((s) => s.lastRecord);
+  const loading = useAttendanceStore((s) => s.loading);
+  const error = useAttendanceStore((s) => s.error);
+  const success = useAttendanceStore((s) => s.success);
+  const schedules = useScheduleStore((s) => s.schedules);
+  const setTodayRecords = useAttendanceStore((s) => s.setTodayRecords);
+  const setLastRecord = useAttendanceStore((s) => s.setLastRecord);
+  const addRecord = useAttendanceStore((s) => s.addRecord);
+  const setLoading = useAttendanceStore((s) => s.setLoading);
+  const setError = useAttendanceStore((s) => s.setError);
+  const setSuccess = useAttendanceStore((s) => s.setSuccess);
+  const setSchedules = useScheduleStore((s) => s.setSchedules);
 
   const isSaturday = new Date().getDay() === 6;
   const isSunday = new Date().getDay() === 0;
@@ -127,13 +137,17 @@ export function AttendanceCard() {
 
   useEffect(() => {
     if (todayData?.lastRecord) setLastRecord(todayData.lastRecord);
+    if (todayData?.todayRecords) setTodayRecords(todayData.todayRecords);
   }, [todayData]);
 
   useEffect(() => {
     try {
       const es = new EventSource('/api/attendance/stream');
       const onAttendance = (e: MessageEvent) => {
-        try { JSON.parse(e.data); queryClient.invalidateQueries({ queryKey: ['attendance', today] }); } catch { }
+        try {
+          JSON.parse(e.data);
+          queryClient.invalidateQueries({ queryKey: ['attendance', today] });
+        } catch { }
       };
       es.addEventListener('attendance', onAttendance as EventListener);
       es.onerror = () => es.close();
@@ -155,15 +169,20 @@ export function AttendanceCard() {
     const currentLocation = await getCurrentLocation();
     const deviceTimestamp = getPeruNowTimestamp();
     try {
-      await mutation.mutateAsync({
+      const data = await mutation.mutateAsync({
         type,
         latitude: currentLocation?.latitude ?? null,
         longitude: currentLocation?.longitude ?? null,
         deviceInfo: navigator.userAgent,
         timestamp: deviceTimestamp,
       });
+      if (data?.record) {
+        addRecord(data.record);
+      } else {
+        const optimisticRecord = { id: Date.now(), type, timestamp: deviceTimestamp, notes: null, is_manual: false, latitude: currentLocation?.latitude ?? null, longitude: currentLocation?.longitude ?? null };
+        addRecord(optimisticRecord);
+      }
       setSuccess(`${getTypeLabel(type)} registrado exitosamente!`);
-      setLastRecord({ type, timestamp: deviceTimestamp });
       gsap.fromTo('.success-message',
         { scale: 0.8, opacity: 0 },
         { scale: 1, opacity: 1, duration: 0.3, ease: 'back.out(1.7)' }
@@ -193,14 +212,10 @@ export function AttendanceCard() {
     },
     onMutate: async (newRecord: MutationPayload) => {
       await queryClient.cancelQueries({ queryKey: ['attendance', today] });
-      const previous = queryClient.getQueryData(['attendance', today]);
-      const optimisticRecord = { type: newRecord.type, timestamp: newRecord.timestamp };
-      queryClient.setQueryData(['attendance', today], (old: any) => {
-        if (!old) return { lastRecord: optimisticRecord, todayRecords: [optimisticRecord] };
-        return { ...old, lastRecord: optimisticRecord, todayRecords: [...(old.todayRecords || []), optimisticRecord] };
-      });
+      const optimisticRecord = { id: Date.now(), type: newRecord.type, timestamp: newRecord.timestamp, notes: null, is_manual: false, latitude: newRecord.latitude, longitude: newRecord.longitude };
+      addRecord(optimisticRecord);
       setLastRecord({ type: newRecord.type, timestamp: newRecord.timestamp });
-      return { previous };
+      return { previous: queryClient.getQueryData(['attendance', today]) };
     },
     onError: (err: unknown, newRecord: MutationPayload, context: any) => {
       setError(err instanceof Error ? err.message : 'Error al registrar');
@@ -218,8 +233,8 @@ export function AttendanceCard() {
       lunch_out: 'Salida Comida',
       lunch_in: 'Regreso Comida',
       check_out: 'Salida',
-      active_break_start: 'Entrar Pausa Activa',
-      active_break_end: 'Salir Pausa Activa',
+      active_break_start: 'Entrar Pausa',
+      active_break_end: 'Salir Pausa',
       bathroom_start: 'Ir al Baño',
       bathroom_end: 'Salir del Baño',
     };
@@ -272,8 +287,16 @@ export function AttendanceCard() {
   const isBreakButtonDisabled = (type: AttendanceType): boolean => {
     if (loading) return true;
     if (isSunday) return true;
-    if (type === 'active_break_start') return hasOpenBreak('active_break_start', 'active_break_end');
-    if (type === 'active_break_end') return !hasOpenBreak('active_break_start', 'active_break_end');
+    if (type === 'active_break_start') {
+      const starts = (todayData?.todayRecords || []).filter((r: any) => r.type === 'active_break_start').length;
+      const ends = (todayData?.todayRecords || []).filter((r: any) => r.type === 'active_break_end').length;
+      return starts >= 2 || starts > ends;
+    }
+    if (type === 'active_break_end') {
+      const starts = (todayData?.todayRecords || []).filter((r: any) => r.type === 'active_break_start').length;
+      const ends = (todayData?.todayRecords || []).filter((r: any) => r.type === 'active_break_end').length;
+      return starts <= ends;
+    }
     if (type === 'bathroom_start') return hasOpenBreak('bathroom_start', 'bathroom_end');
     if (type === 'bathroom_end') return !hasOpenBreak('bathroom_start', 'bathroom_end');
     return false;
@@ -441,7 +464,7 @@ export function AttendanceCard() {
         </div>
 
         <div className="mt-4 pt-4 border-t border-dashed border-slate-200 dark:border-slate-700">
-          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-3 uppercase tracking-wider">Pausas opcionales</p>
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-3 uppercase tracking-wider">Pausas (max 2 pausas activas/dia, 10 min c/u)</p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <button onClick={() => handleAttendanceRecord('active_break_start')} disabled={isBreakButtonDisabled('active_break_start')}
               className={`attendance-action relative overflow-hidden p-3 rounded-xl font-medium transition-all duration-300 border-2 ${isBreakButtonDisabled('active_break_start') ? 'opacity-50 cursor-not-allowed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-400' : 'border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/40'}`}>
@@ -471,7 +494,7 @@ export function AttendanceCard() {
               className={`attendance-action relative overflow-hidden p-3 rounded-xl font-medium transition-all duration-300 border-2 ${isBreakButtonDisabled('bathroom_end') ? 'opacity-50 cursor-not-allowed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-400' : 'border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900/40'}`}>
               <div className="relative z-10 flex items-center justify-center gap-2">
                 {loading === 'bathroom_end' ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <UserCheck className="w-4 h-4" />}
-                <span className="text-sm">Salir Baño</span>
+                <span className="text-sm">Salir del Baño</span>
               </div>
             </button>
           </div>

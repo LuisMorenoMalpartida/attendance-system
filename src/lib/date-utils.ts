@@ -94,7 +94,7 @@ function extractDate(timestamp: string): string {
  * "2026-05-27T17:47:39" → Date con 17:47 en hora local
  * "2026-05-27" → Date con 12:00 en hora local
  */
-function parseLocalDate(dateStr: string): Date {
+export function parseLocalDate(dateStr: string): Date {
   if (!dateStr) return new Date(NaN);
 
   // Normalizar separador 'T' o espacio, quitar milisegundos y offsets
@@ -238,6 +238,21 @@ export function formatDateTime(timestamp: string | Date | null | undefined): str
   if (isNaN(date.getTime())) return '--/--/---- --:--';
   
   return format(date, "dd/MM/yyyy 'a las' HH:mm", { locale: es });
+}
+
+/**
+ * Calcula el tiempo total de pausas en milisegundos para un conjunto de registros
+ */
+export function calculateBreakTime(records: any[]): number {
+  const starts = records.filter(r => r.type === 'active_break_start' || r.type === 'bathroom_start');
+  const ends = records.filter(r => r.type === 'active_break_end' || r.type === 'bathroom_end');
+  let breakTime = 0;
+  for (let i = 0; i < Math.min(starts.length, ends.length); i++) {
+    const start = parseLocalDate(starts[i].timestamp);
+    const end = parseLocalDate(ends[i].timestamp);
+    breakTime += end.getTime() - start.getTime();
+  }
+  return breakTime;
 }
 
 // ============================================================

@@ -15,6 +15,11 @@ import {
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 
+interface AttendanceStatsProps {
+  currentDate: Date;
+  onMonthChange: (increment: number) => void;
+}
+
 interface Stats {
   daysWorkedThisMonth: number;
   averageCheckIn: string;
@@ -35,8 +40,7 @@ const DAY_NAMES: Record<number, string> = {
   0: 'Dom', 1: 'Lun', 2: 'Mar', 3: 'Mie', 4: 'Jue', 5: 'Vie', 6: 'Sab',
 };
 
-export function AttendanceStats() {
-  const [currentDate, setCurrentDate] = useState(new Date());
+export function AttendanceStats({ currentDate, onMonthChange }: AttendanceStatsProps) {
   const [stats, setStats] = useState<Stats>({
     daysWorkedThisMonth: 0,
     averageCheckIn: '--:--',
@@ -100,9 +104,7 @@ export function AttendanceStats() {
   }, [stats]);
 
   const changeMonth = (increment: number) => {
-    const newDate = new Date(currentDate);
-    newDate.setMonth(newDate.getMonth() + increment);
-    setCurrentDate(newDate);
+    onMonthChange(increment);
   };
 
   const formatScheduleDisplay = () => {

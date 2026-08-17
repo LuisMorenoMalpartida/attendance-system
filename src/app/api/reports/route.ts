@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getPeruToday, toPeruTimestamp } from '@/lib/date-utils';
+import { getPeruToday, toPeruTimestamp, calculateBreakTime } from '@/lib/date-utils';
 import { verifyAuth } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
@@ -20,30 +20,20 @@ export async function GET(req: NextRequest) {
     let params: any[] = [];
 
     switch (period) {
-      case 'daily':
+      case 'daily': {
+        const targetDate = startDate || getPeruToday();
         query = `
           SELECT 
             u.id, u.name, u.company_id,
-            COUNT(CASE WHEN ar.type = 'check_in' THEN 1 END) as check_ins,
-            COUNT(CASE WHEN ar.type = 'check_out' THEN 1 END) as check_outs,
-            MIN(CASE WHEN ar.type = 'check_in' THEN ar.timestamp END) as first_check_in,
-            MAX(CASE WHEN ar.type = 'check_out' THEN ar.timestamp END) as last_check_out,
-            COUNT(DISTINCT CASE WHEN ar.type = 'check_in' THEN DATE(ar.timestamp::timestamp) END) as days_attended,
-            COALESCE(
-              EXTRACT(EPOCH FROM 
-                (
-                  MAX(CASE WHEN ar.type = 'check_out' THEN ar.timestamp END)::timestamp - 
-                  MIN(CASE WHEN ar.type = 'check_in' THEN ar.timestamp END)::timestamp
-                )
-              ) / 3600, 0
-            ) as hours_worked
+            ar.type, ar.timestamp
           FROM users u
           LEFT JOIN attendance_records ar ON u.id = ar.user_id
             AND DATE(ar.timestamp::timestamp) = $1
           WHERE u.is_active = true
         `;
-        params = [startDate || getPeruToday()];
+        params = [targetDate];
         break;
+      }
       // ... otros períodos
     }
 
@@ -52,21 +42,77 @@ export async function GET(req: NextRequest) {
       params.push(userId);
     }
 
-    query += ' GROUP BY u.id, u.name, u.company_id ORDER BY u.name';
+    query += ' ORDER BY u.name, ar.timestamp ASC';
 
     const result = await db.query(query, params);
 
+    // Agrupar por usuario y calcular horas
+    const recordsByUser: Record<string, any> = {};
+    for (const record of result.rows) {
+      if (!recordsByUser[record.id]) {
+        recordsByUser[record.id] = {
+          id: record.id,
+          name: record.name,
+          company_id: record.company_id,
+          check_ins: 0,
+          check_outs: 0,
+          records: [],
+        };
+      }
+      if (record.type) {
+        recordsByUser[record.id].records.push(record);
+        if (record.type === 'check_in') recordsByUser[record.id].check_ins++;
+        if (record.type === 'check_out') recordsByUser[record.id].check_outs++;
+      }
+    }
+
+    const records = Object.values(recordsByUser).map((userData: any) => {
+      const userRecords = userData.records;
+      const dates = [...new Set(userRecords.map((r: any) => r.timestamp.split('T')[0]))];
+      const daysAttended = dates.length;
+
+      let totalHours = 0;
+      const recordsByDate: Record<string, any[]> = {};
+      for (const record of userRecords) {
+        const date = record.timestamp.split('T')[0];
+        if (!recordsByDate[date]) recordsByDate[date] = [];
+        recordsByDate[date].push(record);
+      }
+
+      for (const [dateKey, dayRecords] of Object.entries(recordsByDate)) {
+        const checkIn = dayRecords.find((r: any) => r.type === 'check_in');
+        const checkOut = dayRecords.find((r: any) => r.type === 'check_out');
+        if (checkIn && checkOut) {
+          const diff = new Date(checkOut.timestamp).getTime() - new Date(checkIn.timestamp).getTime();
+          const lunchOut = dayRecords.find((r: any) => r.type === 'lunch_out');
+          const lunchIn = dayRecords.find((r: any) => r.type === 'lunch_in');
+          let lunchTime = 0;
+          if (lunchOut && lunchIn) {
+            lunchTime = new Date(lunchIn.timestamp).getTime() - new Date(lunchOut.timestamp).getTime();
+          }
+          const breakTime = calculateBreakTime(dayRecords);
+          totalHours += (diff - lunchTime - breakTime) / (1000 * 60 * 60);
+        }
+      }
+
+      return {
+        ...userData,
+        days_attended: daysAttended,
+        hours_worked: Math.round(totalHours * 100) / 100,
+      };
+    });
+
     // Calcular métricas adicionales
     const metrics = {
-      total_employees: result.rows.length,
-      present_today: result.rows.filter(r => r.check_ins > 0).length,
-      absent_today: result.rows.filter(r => r.check_ins === 0).length,
-      average_check_in: calculateAverageCheckIn(result.rows),
-      late_arrivals: countLateArrivals(result.rows)
+      total_employees: records.length,
+      present_today: records.filter((r: any) => r.check_ins > 0).length,
+      absent_today: records.filter((r: any) => r.check_ins === 0).length,
+      average_check_in: calculateAverageCheckIn(records),
+      late_arrivals: countLateArrivals(records)
     };
 
     return NextResponse.json({
-      records: result.rows,
+      records,
       metrics
     });
   } catch (error) {
@@ -75,9 +121,9 @@ export async function GET(req: NextRequest) {
   }
 }
 
-function calculateAverageCheckIn(rows: any[]) {
-  const validCheckIns = rows
-    .map((r) => r.first_check_in)
+function calculateAverageCheckIn(records: any[]) {
+  const validCheckIns = records
+    .flatMap((r) => (r.records || []).filter((rec: any) => rec.type === 'check_in').map((rec: any) => rec.timestamp))
     .filter(Boolean);
 
   if (validCheckIns.length === 0) {
@@ -105,15 +151,16 @@ function calculateAverageCheckIn(rows: any[]) {
   return `${hours}:${minutes}`;
 }
 
-function countLateArrivals(rows: any[]) {
+function countLateArrivals(records: any[]) {
   const LATE_HOUR = 9;
 
-    return rows.filter((r) => {
-    if (!r.first_check_in) {
+    return records.filter((r) => {
+    const checkIns = (r.records || []).filter((rec: any) => rec.type === 'check_in');
+    if (checkIns.length === 0) {
       return false;
     }
 
-    const checkIn = new Date(toPeruTimestamp(r.first_check_in));
+    const checkIn = new Date(toPeruTimestamp(checkIns[0].timestamp));
 
     return checkIn.getHours() >= LATE_HOUR;
   }).length;

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyAuth } from '@/lib/auth';
+import { calculateBreakTime, parseLocalDate } from '@/lib/date-utils';
 
 export async function GET(req: NextRequest) {
   try {
@@ -65,7 +66,8 @@ export async function GET(req: NextRequest) {
           lunchTime = parseLocalDate(lunchIn.timestamp).getTime() - parseLocalDate(lunchOut.timestamp).getTime();
         }
 
-        day.hoursWorked = (diff - lunchTime) / (1000 * 60 * 60);
+        const breakTime = calculateBreakTime(day.records);
+        day.hoursWorked = (diff - lunchTime - breakTime) / (1000 * 60 * 60);
       }
 
       return day;
@@ -79,25 +81,4 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-// Nota: no normalizamos el string de timestamp — se devuelve tal cual desde la base de datos.
-
-// Parsea un timestamp SIN zona horaria como hora LOCAL
-function parseLocalDate(dateStr: string): Date {
-  if (!dateStr) return new Date(NaN);
-
-  let s = String(dateStr).trim();
-  s = s.replace(' ', 'T');
-  s = s.split('.')[0].replace(/([+-]\d{2}:?\d{2}|Z)$/, '');
-
-  const [datePart, timePart] = s.split('T');
-  const [year, month, day] = (datePart || '').split('-').map(Number);
-
-  if (timePart) {
-    const [hours, minutes, seconds] = (timePart || '').split(':').map(Number);
-    return new Date(year, (month || 1) - 1, day || 1, hours || 0, minutes || 0, seconds || 0);
-  }
-
-  return new Date(year, (month || 1) - 1, day || 1, 12, 0, 0);
 }

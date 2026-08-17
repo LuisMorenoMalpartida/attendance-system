@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyAuth } from '@/lib/auth';
+import { calculateBreakTime } from '@/lib/date-utils';
 
 export async function GET(
   req: NextRequest,
@@ -58,8 +59,9 @@ export async function GET(
         if (lunchOut && lunchIn) {
           lunchTime = new Date(lunchIn.timestamp).getTime() - new Date(lunchOut.timestamp).getTime();
         }
-        
-        day.hoursWorked = (diff - lunchTime) / (1000 * 60 * 60);
+
+        const breakTime = calculateBreakTime(day.records);
+        day.hoursWorked = (diff - lunchTime - breakTime) / (1000 * 60 * 60);
       }
       
       return day;

@@ -79,7 +79,14 @@ export default function AdminDashboardPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userName, setUserName] = useState('Administrador');
-  const [pendingCorrections, setPendingCorrections] = useState(0); // 👈 Estado dinámico
+  const [pendingCorrections, setPendingCorrections] = useState(0);
+  const [myAttendanceDate, setMyAttendanceDate] = useState(new Date());
+
+  const changeMyAttendanceMonth = (increment: number) => {
+    const newDate = new Date(myAttendanceDate);
+    newDate.setMonth(newDate.getMonth() + increment);
+    setMyAttendanceDate(newDate);
+  }; // 👈 Estado dinámico
 
   useEffect(() => {
     fetchUserInfo();
@@ -160,10 +167,10 @@ export default function AdminDashboardPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
               <AdminAttendanceCard />
-              <AdminAttendanceHistory isOwnAttendance={true} />
+              <AdminAttendanceHistory isOwnAttendance={true} currentDate={myAttendanceDate} onMonthChange={changeMyAttendanceMonth} />
             </div>
             <div className="space-y-6">
-              <AdminStats isOwnStats={true} />
+              <AdminStats isOwnStats={true} currentDate={myAttendanceDate} onMonthChange={changeMyAttendanceMonth} />
             </div>
           </div>
         );

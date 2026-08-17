@@ -33,7 +33,7 @@ import {
 } from '@/components/ui/select';
 import { EditAttendanceModal } from './edit-attendance-modal';
 import { LocationViewer } from './location-viewer';
-import { formatDateToPeruYYYYMMDD } from '@/lib/date-utils';
+import { formatDateToPeruYYYYMMDD, calculateBreakTime } from '@/lib/date-utils';
 import ExcelJS from 'exceljs';
 import { CreateManualRecord } from './create-manual-record';
 
@@ -322,7 +322,8 @@ export function AttendanceCalendarView() {
                 if (lunchOut && lunchIn) {
                     lunchTime = new Date(lunchIn.timestamp).getTime() - new Date(lunchOut.timestamp).getTime();
                 }
-                hoursWorked = (diff - lunchTime) / (1000 * 60 * 60);
+                const breakTime = calculateBreakTime(dayRecords);
+                hoursWorked = (diff - lunchTime - breakTime) / (1000 * 60 * 60);
             }
         }
 
@@ -427,10 +428,8 @@ export function AttendanceCalendarView() {
             lunch_out: 'Salida comida',
             lunch_in: 'Regreso comida',
             check_out: 'Salida',
-            active_break_start: 'Entrar pausa activa',
-            active_break_end: 'Salir pausa activa',
-            bathroom_start: 'Ir al baño',
-            bathroom_end: 'Salir del baño',
+            active_break_start: 'Entrar pausa',
+            active_break_end: 'Salir pausa',
         };
         return labels[type] || type;
     };

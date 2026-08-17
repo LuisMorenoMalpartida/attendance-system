@@ -10,6 +10,11 @@ import gsap from 'gsap';
 import { CorrectionRequestModal } from './correction-request-modal';
 import { formatTime, formatDate, formatHoursWorked, formatMonthYear } from '@/lib/date-utils';
 
+interface AttendanceHistoryProps {
+  currentDate: Date;
+  onMonthChange: (increment: number) => void;
+}
+
 interface AttendanceRecord {
   id: number;
   type: 'check_in' | 'lunch_out' | 'lunch_in' | 'check_out' | 'active_break_start' | 'active_break_end' | 'bathroom_start' | 'bathroom_end';
@@ -23,8 +28,7 @@ interface DayRecord {
   hoursWorked: number | null;
 }
 
-export function AttendanceHistory() {
-  const [currentDate, setCurrentDate] = useState(new Date());
+export function AttendanceHistory({ currentDate, onMonthChange }: AttendanceHistoryProps) {
   const [editingNote, setEditingNote] = useState<number | null>(null);
   const [noteText, setNoteText] = useState('');
   const [showCorrectionModal, setShowCorrectionModal] = useState(false);
@@ -56,9 +60,7 @@ export function AttendanceHistory() {
   }, [records, currentDate]);
 
   const changeMonth = (increment: number) => {
-    const newDate = new Date(currentDate);
-    newDate.setMonth(newDate.getMonth() + increment);
-    setCurrentDate(newDate);
+    onMonthChange(increment);
   };
 
   const getTypeIcon = (type: string) => {
@@ -81,8 +83,8 @@ export function AttendanceHistory() {
       lunch_out: 'Salida comida', 
       lunch_in: 'Regreso comida', 
       check_out: 'Salida',
-      active_break_start: 'Entrar pausa activa',
-      active_break_end: 'Salir pausa activa',
+      active_break_start: 'Entrar pausa',
+      active_break_end: 'Salir pausa',
       bathroom_start: 'Ir al baño',
       bathroom_end: 'Salir del baño'
     };

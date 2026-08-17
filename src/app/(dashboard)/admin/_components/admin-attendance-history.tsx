@@ -56,10 +56,11 @@ interface DayRecord {
 
 interface AdminAttendanceHistoryProps {
     isOwnAttendance: boolean;
+    currentDate: Date;
+    onMonthChange: (increment: number) => void;
 }
 
-export function AdminAttendanceHistory({ isOwnAttendance }: AdminAttendanceHistoryProps) {
-    const [currentDate, setCurrentDate] = useState(new Date());
+export function AdminAttendanceHistory({ isOwnAttendance, currentDate, onMonthChange }: AdminAttendanceHistoryProps) {
     const [typeFilter, setTypeFilter] = useState('all');
     const [editingRecord, setEditingRecord] = useState<any>(null);
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -156,9 +157,7 @@ export function AdminAttendanceHistory({ isOwnAttendance }: AdminAttendanceHisto
     }, [records, currentDate]);
 
     const changeMonth = (increment: number) => {
-        const newDate = new Date(currentDate);
-        newDate.setMonth(newDate.getMonth() + increment);
-        setCurrentDate(newDate);
+        onMonthChange(increment);
     };
 
     const getTypeIcon = (type: string) => {
@@ -179,8 +178,8 @@ export function AdminAttendanceHistory({ isOwnAttendance }: AdminAttendanceHisto
             lunch_out: 'Salida comida',
             lunch_in: 'Regreso comida',
             check_out: 'Salida',
-            active_break_start: 'Entrar pausa activa',
-            active_break_end: 'Salir pausa activa',
+            active_break_start: 'Entrar pausa',
+            active_break_end: 'Salir pausa',
             bathroom_start: 'Ir al baño',
             bathroom_end: 'Salir del baño',
         };
@@ -281,8 +280,8 @@ export function AdminAttendanceHistory({ isOwnAttendance }: AdminAttendanceHisto
                                     <SelectItem value="lunch_out">Salida comida</SelectItem>
                                     <SelectItem value="lunch_in">Regreso comida</SelectItem>
                                     <SelectItem value="check_out">Salida</SelectItem>
-                                    <SelectItem value="active_break_start">Entrar pausa activa</SelectItem>
-                                    <SelectItem value="active_break_end">Salir pausa activa</SelectItem>
+                                    <SelectItem value="active_break_start">Entrar pausa</SelectItem>
+                                    <SelectItem value="active_break_end">Salir pausa</SelectItem>
                                     <SelectItem value="bathroom_start">Ir al baño</SelectItem>
                                     <SelectItem value="bathroom_end">Salir del baño</SelectItem>
                                 </SelectContent>

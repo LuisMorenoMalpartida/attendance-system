@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyAuth } from '@/lib/auth';
 import { publishEvent } from '@/lib/sse';
+import { parseLocalDate } from '@/lib/date-utils';
 
 // ============================================================
 // HELPERS
@@ -166,25 +167,21 @@ async function validateFlow(userId: number, type: string, date: string, timestam
       }
       break;
     case 'active_break_start': {
-      const openBreakStart = types.filter((t: string) => t === 'active_break_start').length;
-      const openBreakEnd = types.filter((t: string) => t === 'active_break_end').length;
-      if (openBreakStart > openBreakEnd) {
-        return { valid: false, message: 'Ya tienes una pausa activa en curso' };
+      const breakStarts = types.filter((t: string) => t === 'active_break_start').length;
+      const breakEnds = types.filter((t: string) => t === 'active_break_end').length;
+      if (breakStarts >= 2) {
+        return { valid: false, message: 'Ya alcanzaste el maximo de 2 pausas por dia' };
+      }
+      if (breakStarts > breakEnds) {
+        return { valid: false, message: 'Ya tienes una pausa activa' };
       }
       break;
     }
     case 'active_break_end': {
-      const starts = records.rows.filter((r: any) => r.type === 'active_break_start');
-      const ends = records.rows.filter((r: any) => r.type === 'active_break_end');
-      if (starts.length <= ends.length) {
-        return { valid: false, message: 'No has iniciado una pausa activa' };
-      }
-      const openStart = starts[starts.length - 1];
-      const startTime = new Date(openStart.timestamp).getTime();
-      const endTime = new Date(timestamp || getPeruNowTimestamp()).getTime();
-      const minutes = Math.round((endTime - startTime) / 60000);
-      if (minutes > 10) {
-        return { valid: false, message: `La pausa activa no puede exceder 10 minutos (${minutes} min)` };
+      const breakStarts = types.filter((t: string) => t === 'active_break_start').length;
+      const breakEnds = types.filter((t: string) => t === 'active_break_end').length;
+      if (breakStarts <= breakEnds) {
+        return { valid: false, message: 'No has iniciado una pausa' };
       }
       break;
     }
@@ -197,17 +194,12 @@ async function validateFlow(userId: number, type: string, date: string, timestam
       break;
     }
     case 'bathroom_end': {
-      const starts = types.filter((t: string) => t === 'bathroom_start');
-      const ends = types.filter((t: string) => t === 'bathroom_end');
+      const starts = records.rows.filter((r: any) => r.type === 'bathroom_start');
+      const ends = records.rows.filter((r: any) => r.type === 'bathroom_end');
       if (starts.length <= ends.length) {
         return { valid: false, message: 'No has iniciado una salida al baño' };
       }
-      const openStart = records.rows.filter((r: any) => r.type === 'bathroom_start');
-      const openEnd = records.rows.filter((r: any) => r.type === 'bathroom_end');
-      if (openStart.length <= openEnd.length) {
-        return { valid: false, message: 'No has iniciado una salida al baño' };
-      }
-      const lastStart = openStart[openStart.length - 1];
+      const lastStart = starts[starts.length - 1];
       const startTime = new Date(lastStart.timestamp).getTime();
       const endTime = new Date(timestamp || getPeruNowTimestamp()).getTime();
       const minutes = Math.round((endTime - startTime) / 60000);
@@ -295,6 +287,37 @@ export async function POST(req: NextRequest) {
         { error: 'No se puede registrar el mismo tipo consecutivamente' },
         { status: 400 }
       );
+    }
+
+    // Auto-cerrar pausa activa si excede 10 minutos
+    if (type !== 'active_break_end') {
+      const openBreak = await db.query(
+        `SELECT timestamp FROM attendance_records 
+         WHERE user_id = $1 AND type = 'active_break_start' AND DATE(timestamp::timestamp) = $2 
+         AND NOT EXISTS (
+           SELECT 1 FROM attendance_records ar2 
+           WHERE ar2.user_id = $1 AND ar2.type = 'active_break_end' 
+           AND DATE(ar2.timestamp::timestamp) = DATE(attendance_records.timestamp::timestamp)
+           AND ar2.timestamp > attendance_records.timestamp
+         )
+         ORDER BY timestamp DESC LIMIT 1`,
+        [user.userId, today]
+      );
+
+      if (openBreak.rows.length > 0) {
+        const breakStart = parseLocalDate(openBreak.rows[0].timestamp);
+        const now = parseLocalDate(localTimestamp);
+        const minutesDiff = (now.getTime() - breakStart.getTime()) / 60000;
+
+        if (minutesDiff > 10) {
+          const autoEnd = new Date(breakStart.getTime() + 10 * 60 * 1000);
+          const autoEndTs = `${autoEnd.getFullYear()}-${String(autoEnd.getMonth() + 1).padStart(2, '0')}-${String(autoEnd.getDate()).padStart(2, '0')} ${String(autoEnd.getHours()).padStart(2, '0')}:${String(autoEnd.getMinutes()).padStart(2, '0')}:${String(autoEnd.getSeconds()).padStart(2, '0')}`;
+          await db.query(
+            `INSERT INTO attendance_records (user_id, type, timestamp) VALUES ($1, 'active_break_end', $2)`,
+            [user.userId, autoEndTs]
+          );
+        }
+      }
     }
 
     // Validar flujo diario (incluye validacion de sabados y horarios personalizados)

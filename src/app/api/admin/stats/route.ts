@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyAuth } from '@/lib/auth';
+import { calculateBreakTime } from '@/lib/date-utils';
 
 function getPeruToday(): string {
   const now = new Date();
@@ -57,34 +58,24 @@ export async function GET(req: NextRequest) {
         [admin.userId, today]
       );
 
-      // Calcular llegadas tarde segun horario personalizado
-      let lateArrivals = 0;
-      const checkIns = await db.query(
-        `SELECT timestamp::timestamp as ts, EXTRACT(DOW FROM timestamp::timestamp) as dow
-         FROM attendance_records 
-         WHERE user_id = $1 AND type = 'check_in'
-         AND EXTRACT(MONTH FROM timestamp::timestamp) = EXTRACT(MONTH FROM CURRENT_DATE)
-         AND EXTRACT(YEAR FROM timestamp::timestamp) = EXTRACT(YEAR FROM CURRENT_DATE)`,
+      const lateArrivalsResult = await db.query(
+        `SELECT COUNT(*) as count
+         FROM attendance_records ar
+         JOIN work_schedules ws ON ar.user_id = ws.user_id 
+           AND ws.day_of_week = EXTRACT(DOW FROM ar.timestamp::timestamp)
+           AND ws.is_active = true
+         WHERE ar.user_id = $1 AND ar.type = 'check_in'
+           AND EXTRACT(MONTH FROM ar.timestamp::timestamp) = EXTRACT(MONTH FROM CURRENT_DATE)
+           AND EXTRACT(YEAR FROM ar.timestamp::timestamp) = EXTRACT(YEAR FROM CURRENT_DATE)
+           AND (
+             EXTRACT(HOUR FROM ar.timestamp::timestamp) * 60 + EXTRACT(MINUTE FROM ar.timestamp::timestamp)
+             > 
+             (EXTRACT(HOUR FROM ws.start_time::time) * 60 + EXTRACT(MINUTE FROM ws.start_time::time) + ws.tolerance_minutes)
+           )`,
         [admin.userId]
       );
 
-      for (const record of checkIns.rows) {
-        const dayOfWeek = record.dow;
-        const schedule = schedules.rows.find((s: any) => s.day_of_week === dayOfWeek);
-        
-        if (schedule) {
-          const checkInTime = new Date(record.ts);
-          const checkInMinutes = checkInTime.getHours() * 60 + checkInTime.getMinutes();
-          
-          const startParts = schedule.start_time.split(':');
-          const startMinutes = parseInt(startParts[0]) * 60 + parseInt(startParts[1]);
-          const toleranceMinutes = schedule.tolerance_minutes || 15;
-          
-          if (checkInMinutes > startMinutes + toleranceMinutes) {
-            lateArrivals++;
-          }
-        }
-      }
+      const lateArrivals = parseInt(lateArrivalsResult.rows[0]?.count || '0');
 
       // Horas trabajadas hoy
       const todayRecords = await db.query(
@@ -117,7 +108,8 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        totalHoursToday = (diff - lunchTime) / (1000 * 60 * 60);
+        const todayBreakTime = calculateBreakTime(todayRecords.rows);
+        totalHoursToday = (diff - lunchTime - todayBreakTime) / (1000 * 60 * 60);
       }
 
       const row = monthStats.rows[0];

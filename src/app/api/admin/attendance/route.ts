@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyAuth } from '@/lib/auth';
+import { calculateBreakTime, parseLocalDate } from '@/lib/date-utils';
 
 // ============================================================
 // FUNCIONES HELPER
@@ -173,7 +174,8 @@ export async function GET(req: NextRequest) {
           lunchTime = parseLocalTimestamp(lunchIn.timestamp).getTime() - parseLocalTimestamp(lunchOut.timestamp).getTime();
         }
 
-        day.hoursWorked = (diff - lunchTime) / (1000 * 60 * 60);
+        const breakTime = calculateBreakTime(day.records);
+        day.hoursWorked = (diff - lunchTime - breakTime) / (1000 * 60 * 60);
       }
       return day;
     });

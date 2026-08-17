@@ -60,8 +60,8 @@ export function LocationViewer({
       lunch_out: 'Salida comida',
       lunch_in: 'Regreso comida',
       check_out: 'Salida',
-      active_break_start: 'Entrar pausa activa',
-      active_break_end: 'Salir pausa activa',
+      active_break_start: 'Entrar pausa',
+      active_break_end: 'Salir pausa',
       bathroom_start: 'Ir al baño',
       bathroom_end: 'Salir del baño',
     };
