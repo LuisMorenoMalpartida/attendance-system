@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
             ar.type, ar.timestamp
           FROM users u
           LEFT JOIN attendance_records ar ON u.id = ar.user_id
-            AND DATE(ar.timestamp::timestamp) = $1
+            AND DATE(safe_ts(ar.timestamp)) = $1
           WHERE u.is_active = true
         `;
         params = [targetDate];

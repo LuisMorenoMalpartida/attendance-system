@@ -84,8 +84,8 @@ async function validateFlow(userId: number, type: string, date: string, timestam
 
   const records = await db.query(
     `SELECT type FROM attendance_records 
-     WHERE user_id = $1 AND DATE(timestamp::timestamp) = $2 
-     ORDER BY timestamp::timestamp`,
+     WHERE user_id = $1 AND DATE(safe_ts(timestamp)) = $2 
+     ORDER BY safe_ts(timestamp)`,
     [userId, date]
   );
   const types = records.rows.map((r: any) => r.type);
@@ -229,15 +229,15 @@ export async function GET(req: NextRequest) {
 
     const lastRecord = await db.query(
       `SELECT * FROM attendance_records 
-       WHERE user_id = $1 AND DATE(timestamp::timestamp) = $2 
-       ORDER BY timestamp::timestamp DESC LIMIT 1`,
+       WHERE user_id = $1 AND DATE(safe_ts(timestamp)) = $2 
+       ORDER BY safe_ts(timestamp) DESC LIMIT 1`,
       [user.userId, date]
     );
 
     const todayRecords = await db.query(
       `SELECT * FROM attendance_records 
-       WHERE user_id = $1 AND DATE(timestamp::timestamp) = $2 
-       ORDER BY timestamp::timestamp ASC`,
+       WHERE user_id = $1 AND DATE(safe_ts(timestamp)) = $2 
+       ORDER BY safe_ts(timestamp) ASC`,
       [user.userId, date]
     );
 
@@ -277,8 +277,8 @@ export async function POST(req: NextRequest) {
     // Evitar duplicados consecutivos
     const lastRecord = await db.query(
       `SELECT * FROM attendance_records 
-       WHERE user_id = $1 AND DATE(timestamp::timestamp) = $2 
-       ORDER BY timestamp::timestamp DESC LIMIT 1`,
+       WHERE user_id = $1 AND DATE(safe_ts(timestamp)) = $2 
+       ORDER BY safe_ts(timestamp) DESC LIMIT 1`,
       [user.userId, today]
     );
 
@@ -293,11 +293,11 @@ export async function POST(req: NextRequest) {
     if (type !== 'active_break_end') {
       const openBreak = await db.query(
         `SELECT timestamp FROM attendance_records 
-         WHERE user_id = $1 AND type = 'active_break_start' AND DATE(timestamp::timestamp) = $2 
+         WHERE user_id = $1 AND type = 'active_break_start' AND DATE(safe_ts(timestamp)) = $2 
          AND NOT EXISTS (
            SELECT 1 FROM attendance_records ar2 
            WHERE ar2.user_id = $1 AND ar2.type = 'active_break_end' 
-           AND DATE(ar2.timestamp::timestamp) = DATE(attendance_records.timestamp::timestamp)
+           AND DATE(safe_ts(ar2.timestamp)) = DATE(safe_ts(attendance_records.timestamp))
            AND ar2.timestamp > attendance_records.timestamp
          )
          ORDER BY timestamp DESC LIMIT 1`,

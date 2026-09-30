@@ -39,17 +39,17 @@ export async function GET(req: NextRequest) {
     // Dias trabajados y promedios del mes seleccionado
     const monthStats = await db.query(
       `SELECT 
-        COUNT(DISTINCT DATE(timestamp::timestamp)) as days_worked,
+        COUNT(DISTINCT DATE(safe_ts(timestamp))) as days_worked,
         AVG(CASE WHEN type = 'check_in' 
-          THEN EXTRACT(HOUR FROM timestamp::timestamp) * 60 + EXTRACT(MINUTE FROM timestamp::timestamp) 
+          THEN EXTRACT(HOUR FROM safe_ts(timestamp)) * 60 + EXTRACT(MINUTE FROM safe_ts(timestamp)) 
           END) as avg_check_in_minutes,
         AVG(CASE WHEN type = 'check_out' 
-          THEN EXTRACT(HOUR FROM timestamp::timestamp) * 60 + EXTRACT(MINUTE FROM timestamp::timestamp) 
+          THEN EXTRACT(HOUR FROM safe_ts(timestamp)) * 60 + EXTRACT(MINUTE FROM safe_ts(timestamp)) 
           END) as avg_check_out_minutes
        FROM attendance_records 
        WHERE user_id = $1 
-       AND EXTRACT(MONTH FROM timestamp::timestamp) = $2
-       AND EXTRACT(YEAR FROM timestamp::timestamp) = $3`,
+       AND EXTRACT(MONTH FROM safe_ts(timestamp)) = $2
+       AND EXTRACT(YEAR FROM safe_ts(timestamp)) = $3`,
       [userId, month, year]
     );
 
@@ -57,13 +57,13 @@ export async function GET(req: NextRequest) {
       `SELECT COUNT(*) as count
        FROM attendance_records ar
        JOIN work_schedules ws ON ar.user_id = ws.user_id 
-         AND ws.day_of_week = EXTRACT(DOW FROM ar.timestamp::timestamp)
+         AND ws.day_of_week = EXTRACT(DOW FROM safe_ts(ar.timestamp))
          AND ws.is_active = true
        WHERE ar.user_id = $1 AND ar.type = 'check_in'
-         AND EXTRACT(MONTH FROM ar.timestamp::timestamp) = $2
-         AND EXTRACT(YEAR FROM ar.timestamp::timestamp) = $3
+         AND EXTRACT(MONTH FROM safe_ts(ar.timestamp)) = $2
+         AND EXTRACT(YEAR FROM safe_ts(ar.timestamp)) = $3
          AND (
-           EXTRACT(HOUR FROM ar.timestamp::timestamp) * 60 + EXTRACT(MINUTE FROM ar.timestamp::timestamp)
+           EXTRACT(HOUR FROM safe_ts(ar.timestamp)) * 60 + EXTRACT(MINUTE FROM safe_ts(ar.timestamp))
            > 
            (EXTRACT(HOUR FROM ws.start_time::time) * 60 + EXTRACT(MINUTE FROM ws.start_time::time) + ws.tolerance_minutes)
          )`,
@@ -77,9 +77,9 @@ export async function GET(req: NextRequest) {
     const allMonthRecords = await db.query(
       `SELECT * FROM attendance_records 
        WHERE user_id = $1 
-       AND EXTRACT(MONTH FROM timestamp::timestamp) = $2
-       AND EXTRACT(YEAR FROM timestamp::timestamp) = $3
-       ORDER BY DATE(timestamp::timestamp), timestamp::timestamp`,
+       AND EXTRACT(MONTH FROM safe_ts(timestamp)) = $2
+       AND EXTRACT(YEAR FROM safe_ts(timestamp)) = $3
+       ORDER BY DATE(safe_ts(timestamp)), safe_ts(timestamp)`,
       [userId, month, year]
     );
 
@@ -122,8 +122,8 @@ export async function GET(req: NextRequest) {
     // Horas trabajadas hoy (siempre del dia actual)
     const todayRecords = await db.query(
       `SELECT * FROM attendance_records 
-       WHERE user_id = $1 AND DATE(timestamp::timestamp) = $2 
-       ORDER BY timestamp::timestamp`,
+       WHERE user_id = $1 AND DATE(safe_ts(timestamp)) = $2 
+       ORDER BY safe_ts(timestamp)`,
       [userId, today]
     );
 

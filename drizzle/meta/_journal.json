@@ -15,6 +15,13 @@
       "when": 1785795202164,
       "tag": "0001_flimsy_payback",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788391171000,
+      "tag": "0002_safe_attendance_timestamp",
+      "breakpoints": true
     }
   ]
 }

@@ -19,12 +19,12 @@ export async function GET(req: NextRequest) {
     const result = await db.query(
       `SELECT 
         id, type, timestamp, notes, is_manual, 
-        latitude, longitude, DATE(timestamp::timestamp) as date
+        latitude, longitude, DATE(safe_ts(timestamp)) as date
        FROM attendance_records 
        WHERE user_id = $1 
-       AND EXTRACT(YEAR FROM timestamp::timestamp) = $2 
-       AND EXTRACT(MONTH FROM timestamp::timestamp) = $3 
-       ORDER BY DATE(timestamp::timestamp) DESC, timestamp ASC`,
+       AND EXTRACT(YEAR FROM safe_ts(timestamp)) = $2 
+       AND EXTRACT(MONTH FROM safe_ts(timestamp)) = $3 
+       ORDER BY DATE(safe_ts(timestamp)) DESC, timestamp ASC`,
       [user.userId, year, month]
     );
 

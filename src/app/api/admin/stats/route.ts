@@ -43,18 +43,18 @@ export async function GET(req: NextRequest) {
       // Dias trabajados y promedios
       const monthStats = await db.query(
         `SELECT 
-          COUNT(DISTINCT DATE(timestamp::timestamp)) as days_worked,
+          COUNT(DISTINCT DATE(safe_ts(timestamp))) as days_worked,
           AVG(CASE WHEN type = 'check_in' 
-            THEN EXTRACT(HOUR FROM timestamp::timestamp) * 60 + EXTRACT(MINUTE FROM timestamp::timestamp) 
+            THEN EXTRACT(HOUR FROM safe_ts(timestamp)) * 60 + EXTRACT(MINUTE FROM safe_ts(timestamp)) 
             END) as avg_check_in_minutes,
           AVG(CASE WHEN type = 'check_out' 
-            THEN EXTRACT(HOUR FROM timestamp::timestamp) * 60 + EXTRACT(MINUTE FROM timestamp::timestamp) 
+            THEN EXTRACT(HOUR FROM safe_ts(timestamp)) * 60 + EXTRACT(MINUTE FROM safe_ts(timestamp)) 
             END) as avg_check_out_minutes,
-          COUNT(CASE WHEN type = 'check_in' AND DATE(timestamp::timestamp) = $2 THEN 1 END) as present_today
+          COUNT(CASE WHEN type = 'check_in' AND DATE(safe_ts(timestamp)) = $2 THEN 1 END) as present_today
          FROM attendance_records 
          WHERE user_id = $1 
-         AND EXTRACT(MONTH FROM timestamp::timestamp) = EXTRACT(MONTH FROM CURRENT_DATE)
-         AND EXTRACT(YEAR FROM timestamp::timestamp) = EXTRACT(YEAR FROM CURRENT_DATE)`,
+         AND EXTRACT(MONTH FROM safe_ts(timestamp)) = EXTRACT(MONTH FROM CURRENT_DATE)
+         AND EXTRACT(YEAR FROM safe_ts(timestamp)) = EXTRACT(YEAR FROM CURRENT_DATE)`,
         [admin.userId, today]
       );
 
@@ -62,13 +62,13 @@ export async function GET(req: NextRequest) {
         `SELECT COUNT(*) as count
          FROM attendance_records ar
          JOIN work_schedules ws ON ar.user_id = ws.user_id 
-           AND ws.day_of_week = EXTRACT(DOW FROM ar.timestamp::timestamp)
+           AND ws.day_of_week = EXTRACT(DOW FROM safe_ts(ar.timestamp))
            AND ws.is_active = true
          WHERE ar.user_id = $1 AND ar.type = 'check_in'
-           AND EXTRACT(MONTH FROM ar.timestamp::timestamp) = EXTRACT(MONTH FROM CURRENT_DATE)
-           AND EXTRACT(YEAR FROM ar.timestamp::timestamp) = EXTRACT(YEAR FROM CURRENT_DATE)
+           AND EXTRACT(MONTH FROM safe_ts(ar.timestamp)) = EXTRACT(MONTH FROM CURRENT_DATE)
+           AND EXTRACT(YEAR FROM safe_ts(ar.timestamp)) = EXTRACT(YEAR FROM CURRENT_DATE)
            AND (
-             EXTRACT(HOUR FROM ar.timestamp::timestamp) * 60 + EXTRACT(MINUTE FROM ar.timestamp::timestamp)
+             EXTRACT(HOUR FROM safe_ts(ar.timestamp)) * 60 + EXTRACT(MINUTE FROM safe_ts(ar.timestamp))
              > 
              (EXTRACT(HOUR FROM ws.start_time::time) * 60 + EXTRACT(MINUTE FROM ws.start_time::time) + ws.tolerance_minutes)
            )`,
@@ -80,8 +80,8 @@ export async function GET(req: NextRequest) {
       // Horas trabajadas hoy
       const todayRecords = await db.query(
         `SELECT * FROM attendance_records 
-         WHERE user_id = $1 AND DATE(timestamp::timestamp) = $2 
-         ORDER BY timestamp::timestamp`,
+         WHERE user_id = $1 AND DATE(safe_ts(timestamp)) = $2 
+         ORDER BY safe_ts(timestamp)`,
         [admin.userId, today]
       );
 
@@ -132,7 +132,7 @@ export async function GET(req: NextRequest) {
       db.query('SELECT COUNT(*) as total, COUNT(CASE WHEN is_active THEN 1 END) as active FROM users'),
       db.query(`
         SELECT 
-          COUNT(DISTINCT CASE WHEN DATE(ar.timestamp::timestamp) = $1 THEN ar.user_id END) as present_today
+          COUNT(DISTINCT CASE WHEN DATE(safe_ts(ar.timestamp)) = $1 THEN ar.user_id END) as present_today
         FROM attendance_records ar
       `, [today]),
       db.query('SELECT COUNT(*) as total FROM companies'),
@@ -143,12 +143,12 @@ export async function GET(req: NextRequest) {
       SELECT COUNT(DISTINCT ar.user_id) as late_arrivals
       FROM attendance_records ar
       JOIN work_schedules ws ON ar.user_id = ws.user_id 
-        AND ws.day_of_week = EXTRACT(DOW FROM ar.timestamp::timestamp)
+        AND ws.day_of_week = EXTRACT(DOW FROM safe_ts(ar.timestamp))
         AND ws.is_active = true
       WHERE ar.type = 'check_in' 
-        AND DATE(ar.timestamp::timestamp) = $1
+        AND DATE(safe_ts(ar.timestamp)) = $1
         AND (
-          EXTRACT(HOUR FROM ar.timestamp::timestamp) * 60 + EXTRACT(MINUTE FROM ar.timestamp::timestamp)
+          EXTRACT(HOUR FROM safe_ts(ar.timestamp)) * 60 + EXTRACT(MINUTE FROM safe_ts(ar.timestamp))
           > 
           (EXTRACT(HOUR FROM ws.start_time::time) * 60 + EXTRACT(MINUTE FROM ws.start_time::time) + ws.tolerance_minutes)
         )
